@@ -1,0 +1,1 @@
+{"status": "success", "state": {"step1_id": "id_12345", "step2_status": "appended_cleanly", "system_info": null, "final": true, "next_step": "step4_system_info"}}
