@@ -1,1 +1,0 @@
-{"status": "success", "state": {"step1_id": "id_12345", "step2_status": null, "system_info": null, "final": false, "next_step": "step2_simulate_crash"}}
