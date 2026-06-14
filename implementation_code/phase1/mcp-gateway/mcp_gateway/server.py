@@ -1,13 +1,15 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from mcp_gateway.parser import parse_jsonrpc_request, JSONRPCParseError
+from mcp_gateway.config import load_config
+from mcp_gateway.router import forward_request
 
 app = FastAPI(title="MCP Gateway Server")
 
 # Load config on startup
-from mcp_gateway.config import load_config
+backends = []
 try:
-    backends = load_config("config.yaml")
+    backends.extend(load_config("config.yaml"))
     print(f"Loaded {len(backends)} backends from config.")
 except Exception as e:
     print(f"Warning during startup: {e}")
@@ -27,9 +29,4 @@ async def mcp_endpoint(request: Request):
             content={"error": "invalid_request", "detail": str(e)}
         )
         
-    # This is a stub for Month 1: Core Proxy Routing
-    # We will route the request to the correct backend here
-    return JSONResponse(
-        status_code=501, 
-        content={"error": "Not Implemented", "detail": "MCP proxy endpoint routing is under construction"}
-    )
+    return await forward_request(rpc_request, backends)
