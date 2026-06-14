@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "type": "object",
+  "properties": {
+    "chat_id": {
+      "type": "integer"
+    },
+    "text": {
+      "type": "string"
+    }
+  },
+  "required": ["chat_id", "text"]
+}

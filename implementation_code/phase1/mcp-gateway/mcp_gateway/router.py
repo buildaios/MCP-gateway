@@ -24,18 +24,8 @@ def resolve_backend(method: str, backends: List[Backend]) -> Backend:
             
     raise RouterError(f"No backend configured for tool: {method}", status_code=404, error_code="unknown_tool")
 
-async def forward_request(rpc_request: Dict[str, Any], backends: List[Backend]) -> Response:
+async def forward_request(rpc_request: Dict[str, Any], backend: Backend) -> Response:
     """Forward the JSON-RPC request to the resolved backend."""
-    method = rpc_request.get("method", "")
-    
-    try:
-        backend = resolve_backend(method, backends)
-    except RouterError as e:
-        return JSONResponse(
-            status_code=e.status_code,
-            content={"error": e.error_code, "detail": e.message}
-        )
-        
     # Forward the request to the backend URL
     try:
         async with httpx.AsyncClient(timeout=backend.timeout) as client:

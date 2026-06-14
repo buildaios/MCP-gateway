@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "type": "object",
+  "properties": {
+    "repo": {
+      "type": "string"
+    }
+  }
+}

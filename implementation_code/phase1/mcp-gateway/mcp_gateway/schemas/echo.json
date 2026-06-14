@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string"
+    }
+  },
+  "required": ["text"]
+}

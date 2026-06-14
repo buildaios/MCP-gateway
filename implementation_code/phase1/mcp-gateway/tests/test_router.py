@@ -2,7 +2,7 @@ import pytest
 import httpx
 from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
-from mcp_gateway.server import app, backends
+from mcp_gateway.server import app, backends, schema_registry
 from mcp_gateway.config import Backend
 
 client = TestClient(app)
@@ -15,6 +15,13 @@ def setup_test_backends():
         Backend(name="echo", url="http://echo-server/mcp", prefix="echo", timeout=1),
         Backend(name="github", url="http://github-proxy/mcp", prefix="github", timeout=5)
     ])
+    schema_registry.schemas.clear()
+    schema_registry.schemas["echo"] = {
+        "type": "object", "properties": {"text": {"type": "string"}}
+    }
+    schema_registry.schemas["github"] = {
+        "type": "object"
+    }
 
 def test_resolve_exact_name():
     from mcp_gateway.router import resolve_backend
