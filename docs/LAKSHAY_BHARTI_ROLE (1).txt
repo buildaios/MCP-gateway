@@ -1,0 +1,595 @@
+============================================================
+FEDORA AI OS — TEAM ASSIGNMENT: LAKSHAY BHARTI
+============================================================
+Role: MCP Gateway Developer
+Focus: Core Proxy, Schema Validation, Configuration, API Integration
+Generated: 2026-06-08
+Project Lead: Lakshay (Founder)
+============================================================
+
+TABLE OF CONTENTS
+=================
+1. Mission
+2. Why This Role Matters
+3. Fedora AI OS Components Owned
+4. Learning Roadmap
+5. Month 1 Goals (Weeks 1–4)
+6. Month 2 Goals (Weeks 5–8)
+7. Month 3 Goals (Weeks 9–12)
+8. 15 GitHub Issues
+9. Reading Resources
+10. Success Criteria
+11. How to Get Help
+12. Files and Folders You Own
+
+============================================================
+1. MISSION
+============================================================
+
+Build the MCP Gateway — the central routing layer that every agent in Fedora
+AI OS uses to talk to external tools. You own the core proxy: accepting JSON-
+RPC requests, routing them to the correct backend, and returning responses.
+You also own schema validation (rejecting malformed requests before they hit
+backends) and the YAML configuration system. By month 3, you will bridge the
+gateway to LangGraph so workflows can call tools through the gateway.
+
+Your work is the single most critical deliverable for the project right now.
+The CRITICAL_PATH.md file says it directly: "The next missing capability is
+MCP Gateway — Core Proxy. Without the gateway, no component can talk to any
+other component." You are building the foundation that everything else sits on.
+
+============================================================
+2. WHY THIS ROLE MATTERS
+============================================================
+
+The current project state (from CURRENT_STATE.md):
+
+  COMPLETED:
+  - Workflow engine v2/v3 (atomic checkpoints, compensation, chaos-tested)
+  - Test suite: 6 reliability tests, all passing
+
+  IN PROGRESS:
+  - Nothing. No active development.
+
+  NOT STARTED:
+  - MCP Gateway
+  - LangGraph integration
+  - All specialist agents (CEO, Security, Memory, Desktop)
+  - OpenTelemetry, Grafana, SELinux policies, Trust enforcement
+
+Every single one of those "not started" items depends on the MCP Gateway.
+Without the gateway, agents can't talk to anything. LangGraph nodes can't
+call tools. The CEO agent can't decompose tasks into executable steps.
+
+Your job is to unblock the entire project by shipping the gateway's core
+proxy, schema validation, and configuration system.
+
+============================================================
+3. COMPONENTS OWNED
+============================================================
+
+A. MCP GATEWAY SERVER (Month 1)
+   - FastAPI/Starlette HTTP server
+   - Health endpoint: GET /health → 200
+   - MCP endpoint: POST /mcp — accepts JSON-RPC 2.0
+   - CLI: gateway serve --port 8000
+   - Files: gateway/server.py, gateway/cli.py
+
+B. CORE PROXY ROUTING (Month 1)
+   - JSON-RPC 2.0 request parser
+   - Request router: tool name → backend URL resolution
+   - httpx-based HTTP forwarding
+   - Response passthrough to caller
+   - Error handling: 502 for unreachable backend, 400 for malformed input
+   - Files: gateway/router.py
+
+C. YAML CONFIGURATION SYSTEM (Month 1)
+   - Backend definitions: name, url, prefix, timeout
+   - Configuration loaded at startup, validated
+   - Hot-reload not required in V1
+   - Files: gateway/config.py, config.yaml
+
+D. SCHEMA VALIDATION (Month 2)
+   - jsonschema validation on incoming requests
+   - Per-backend JSON Schema files
+   - Schema registry loaded from config
+   - 400 response with field-level error details
+   - Files: gateway/validation.py, gateway/schemas/
+
+E. BACKEND INTEGRATIONS (Month 2)
+   - Real backends: GitHub API, Telegram Bot API, system echo
+   - Each backend has a schema, config entry, and test
+   - Prove the gateway works with real services
+   - Files: gateway/backends/ (backend-specific adapters)
+
+F. LANGGRAPH BRIDGE (Month 3)
+   - Wrap v3 engine steps as LangGraph nodes
+   - LangGraph nodes call MCP Gateway for tool execution
+   - State adapter: WorkflowState ↔ LangGraph state
+   - Full round-trip: LangGraph → Gateway → Backend → Gateway → LangGraph
+   - Files: implementation/phase1/langgraph_bridge/
+
+============================================================
+4. LEARNING ROADMAP
+============================================================
+
+You have solid software knowledge. This role pushes you into backend
+engineering, network protocols, and workflow orchestration.
+
+WEEK 1–2: HTTP and JSON-RPC
+  - Learn: HTTP methods, status codes, headers (MDN Web Docs)
+  - Learn: JSON-RPC 2.0 specification (jsonrpc.org)
+  - Learn: FastAPI basics — route decorators, request/response models
+  - Learn: httpx library for async HTTP client
+  - Practice: Build a tiny echo server that accepts JSON and returns it
+
+WEEK 3–4: Routing and Configuration
+  - Learn: YAML parsing with PyYAML
+  - Learn: URL resolution and request forwarding
+  - Learn: Error handling patterns (try/except, HTTPException)
+  - Practice: Forward a request from one server to another
+
+WEEK 5–6: Schema Validation
+  - Learn: JSON Schema specification (json-schema.org)
+  - Learn: jsonschema Python library
+  - Learn: Middleware pattern in FastAPI
+  - Practice: Write a schema and validate 10 different requests
+
+WEEK 7–8: Real API Integration
+  - Learn: GitHub REST API (docs.github.com)
+  - Learn: Telegram Bot API (core.telegram.org/bots/api)
+  - Learn: Authentication patterns (Bearer tokens, API keys)
+  - Practice: Call GitHub and Telegram APIs from Python
+
+WEEK 9–10: LangGraph Basics
+  - Learn: LangGraph concepts — StateGraph, nodes, edges, checkpoints
+  - Learn: langgraph-checkpoint-sqlite
+  - Learn: TypedDict state in Python
+  - Practice: Build a 3-node LangGraph workflow
+
+WEEK 11–12: LangGraph ↔ Gateway Integration
+  - Learn: How to make HTTP calls from inside LangGraph nodes
+  - Learn: State serialization and deserialization
+  - Practice: Wire your gateway into a LangGraph workflow
+
+============================================================
+5. MONTH 1 GOALS (WEEKS 1–4)
+============================================================
+
+GOAL 1: Gateway Server Ships
+  - `pip install -e .` works from implementation/phase1/mcp-gateway/
+  - `gateway serve --port 8000` starts the server
+  - `curl http://localhost:8000/health` returns {"status": "healthy"}
+  - Server logs each request to stdout
+  - Graceful shutdown on SIGTERM
+
+GOAL 2: Core Proxy Routing Works
+  - `POST /mcp` with valid JSON-RPC body routes to correct backend
+  - Backend resolved from tool name or server prefix
+  - Request forwarded via httpx, response returned unchanged
+  - YAML config defines backends: name, url, prefix, timeout
+  - Unreachable backend → 502 with JSON error body
+  - Malformed JSON-RPC → 400 with error description
+
+GOAL 3: End-to-End Test Passes
+  - Mock backend (simple HTTP server that echoes back)
+  - Test: curl → gateway → mock backend → response matches
+  - Test: gateway returns 502 when mock backend is down
+  - Test: gateway returns 400 when JSON-RPC is malformed
+  - Test: gateway returns 200 on health check
+  - All tests run via `pytest`
+
+DELIVERABLES (end of Month 1):
+  - gateway/server.py — FastAPI server with /health and /mcp endpoints
+  - gateway/router.py — request routing logic
+  - gateway/config.py — YAML config loader with validation
+  - config.yaml — sample backend definitions (echo, mock)
+  - tests/test_proxy.py — integration tests (3+ tests)
+  - README.md — updated with working setup, run, and test instructions
+
+============================================================
+6. MONTH 2 GOALS (WEEKS 5–8)
+============================================================
+
+GOAL 1: Schema Validation Layer
+  - jsonschema validation on all incoming requests
+  - Per-backend schemas: echo.json, github.json, telegram.json
+  - Schema registry loaded at startup from config
+  - Invalid requests → 400 with field-level errors
+  - Test: valid request passes, missing field fails, wrong type fails
+  - Schema versioning: each schema has a version field
+
+GOAL 2: Real Backend Integrations
+  - GitHub backend: list repos, get repo info, create issue
+  - Telegram backend: send message (if token available from Ojasvi's auth)
+  - System echo backend: always available, no auth required
+  - Each backend has: schema, config entry, adapter (if needed), test
+  - Prove the gateway works with real services (not just mocks)
+
+GOAL 3: Error Handling Improvements
+  - Backend timeout: configurable per backend (default 30s)
+  - Backend returns non-200: gateway surfaces the error
+  - Backend returns invalid JSON: gateway returns 502 with detail
+  - Request/response logging: every request logged with timestamp, method, backend, status
+
+DELIVERABLES (end of Month 2):
+  - gateway/validation.py — schema validation middleware
+  - gateway/schemas/ — echo.json, github.json, telegram.json
+  - gateway/backends/ — adapters for GitHub, Telegram
+  - config.yaml — updated with real backend configs
+  - tests/test_validation.py — schema validation tests
+  - tests/test_github_integration.py — GitHub API tests
+  - tests/test_telegram_integration.py — Telegram API tests
+
+============================================================
+7. MONTH 3 GOALS (WEEKS 9–12)
+============================================================
+
+GOAL 1: LangGraph Bridge — Project Setup and State Adapter
+  - New Python package: implementation/phase1/langgraph_bridge/
+  - Dependencies: langgraph, langgraph-checkpoint-sqlite
+  - Load existing v3 workflow steps as LangGraph nodes
+  - Bidirectional state conversion: WorkflowState ↔ LangGraph TypedDict
+  - CheckpointStore.save() called after each LangGraph node
+  - Minimal graph: sequential node chain (same as v3 workflow)
+
+GOAL 2: LangGraph Bridge — Gateway Integration
+  - LangGraph node calls MCP Gateway to execute a tool
+  - Tool response flows back into LangGraph state
+  - Timeout and retry handled by gateway (LangGraph just awaits response)
+  - Full round-trip: LangGraph node → POST /mcp → Gateway → Backend → Response → LangGraph state
+  - Existing v2_package_workflow runs through LangGraph with no behavior change
+
+GOAL 3: Resilience Integration (with Kapil's work)
+  - Gateway's retry and circuit breaker (built by Kapil) tested through LangGraph
+  - LangGraph workflow survives backend failure
+  - Checkpoint recovery works: crash during gateway call → resume from checkpoint
+
+DELIVERABLES (end of Month 3):
+  - implementation/phase1/langgraph_bridge/bridge.py — main bridge module
+  - implementation/phase1/langgraph_bridge/state_adapter.py — state conversion
+  - implementation/phase1/langgraph_bridge/workflow_loader.py — load v3 steps
+  - tests/test_langgraph_bridge.py — round-trip tests
+  - tests/test_state_adapter.py — conversion tests
+
+============================================================
+8. 15 GITHUB ISSUES
+============================================================
+
+-- MONTH 1 --
+
+Issue 1: Create gateway server scaffold with health endpoint
+  Description: Build the FastAPI server skeleton. CLI entrypoint via
+  pyproject.toml scripts. /health endpoint returns 200. Server starts
+  on configurable port. Graceful shutdown on SIGTERM.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - 'gateway serve --port 8000' starts server
+    - curl localhost:8000/health → 200 + JSON {'status': 'healthy'}
+    - Ctrl+C shuts down cleanly
+    - pyproject.toml has [project.scripts] with gateway entrypoint
+
+Issue 2: Implement YAML config loader for backend definitions
+  Description: Read config.yaml at startup. Parse backend entries:
+  name, url, prefix, timeout. Validate required fields. Return parsed
+  config dict. Handle missing config file gracefully (error message).
+  Difficulty: Easy
+  Acceptance Criteria:
+    - config.yaml with 2 backends → loader returns list of Backend objects
+    - Missing required field → ValueError with field name
+    - Missing config file → FileNotFoundError with helpful message
+    - Test: valid config loads, invalid config raises error
+
+Issue 3: Implement JSON-RPC request parser
+  Description: Parse POST /mcp body. Validate JSON-RPC 2.0 format:
+  jsonrpc='2.0', method present, id present. Extract method and params.
+  Return 400 on any validation failure with descriptive error.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - Valid JSON-RPC → parsed into Python dict/object
+    - Missing jsonrpc field → 400 'missing jsonrpc version'
+    - Missing method → 400 'missing method'
+    - Non-JSON body → 400 'invalid JSON'
+    - Test: 4 test cases (valid, missing field × 2, invalid JSON)
+
+Issue 4: Implement backend routing — tool name to URL
+  Description: Given parsed JSON-RPC, resolve method to backend URL.
+  Match by exact tool name or by server prefix. Forward request via
+  httpx. Return backend response to caller as-is.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - Tool 'echo' → resolved to echo backend URL from config
+    - Tool 'github.list_repos' → resolved to github backend URL
+    - Unknown tool → 404 'unknown tool'
+    - Response from backend returned unchanged to caller
+    - Test: mock backend, round-trip
+
+Issue 5: Implement error handling — 502 and 400
+  Description: Backend unreachable → 502 with JSON error body.
+  Backend timeout → 502. Invalid JSON-RPC → 400. Error body includes:
+  error_code, message, detail (backend name, original error if safe).
+  Difficulty: Easy
+  Acceptance Criteria:
+    - Backend down → 502 {'error': 'backend_unreachable', 'detail': ...}
+    - Request timeout → 502 {'error': 'backend_timeout', 'detail': ...}
+    - Malformed request → 400 {'error': 'invalid_request', 'detail': ...}
+    - No internal tracebacks leaked to response body
+    - Test: 3 error scenarios
+
+Issue 6: Write proxy integration tests
+  Description: Full integration test suite. Mock backend via httpx
+  test client or simple HTTP server. Test scenarios: successful round-
+  trip, backend timeout, backend 500, invalid JSON, unknown tool.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - test_proxy_roundtrip passes
+    - test_backend_unreachable passes
+    - test_invalid_jsonrpc passes
+    - test_unknown_tool passes
+    - All tests run via pytest, CI green
+
+-- MONTH 2 --
+
+Issue 7: Implement jsonschema validation middleware
+  Description: FastAPI middleware that validates request params against
+  a JSON Schema. Schema selected by tool name. Validation errors returned
+  as 400 with field-level detail (which field, what was wrong, expected
+  type).
+  Difficulty: Medium
+  Acceptance Criteria:
+    - Valid request: passes through to router
+    - Missing required field: 400 with field name and 'required' error
+    - Wrong type: 400 with field name and 'type' error
+    - No schema for tool: passes through (no validation) with warning log
+    - Test: valid, missing field, wrong type, no schema
+
+Issue 8: Create schema registry with per-backend JSON Schema files
+  Description: Schema files in gateway/schemas/ directory. One file per
+  backend. Registry loads all schemas at startup (or lazily). Schemas
+  referenceable by tool name. Each schema has version field.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - gateway/schemas/echo.json exists, valid JSON Schema
+    - gateway/schemas/github.json exists, valid JSON Schema
+    - gateway/schemas/telegram.json exists, valid JSON Schema
+    - Registry.load('echo') returns the echo schema
+    - Registry.load('nonexistent') returns None
+    - All schemas validate against JSON Schema meta-schema
+
+Issue 9: Write validation tests
+  Description: Test suite for schema validation. Test each schema with
+  valid and invalid inputs. Test edge cases: empty params, null params,
+  extra fields, nested objects.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - test_echo_valid passes
+    - test_echo_missing_required passes
+    - test_github_valid passes
+    - test_github_wrong_type passes
+    - test_telegram_valid passes
+    - test_no_schema_passes_through passes
+    - All tests: pytest, CI green
+
+Issue 10: Integrate GitHub API as a real backend
+  Description: Add GitHub backend to config.yaml. Write adapter if
+  needed (depends on API shape). Create JSON Schema for GitHub tool.
+  Test: list repos, get repo info. Token from Ojasvi's auth module.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - config.yaml has github backend entry
+    - Tool 'github.list_repos' → calls GET /user/repos
+    - Tool 'github.get_repo' → calls GET /repos/{owner}/{repo}
+    - Test: mock GitHub API response, verify parsed correctly
+    - README updated with GitHub backend setup instructions
+
+Issue 11: Integrate Telegram API as a real backend
+  Description: Add Telegram backend to config.yaml. JSON Schema for
+  send_message tool. Token from Ojasvi's auth module.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - config.yaml has telegram backend entry
+    - Tool 'telegram.send_message' → calls sendMessage API
+    - Tool 'telegram.get_updates' → calls getUpdates API
+    - Test: mock Telegram API response
+    - README updated with Telegram backend setup
+
+Issue 12: Implement backend timeout and non-200 error surfacing
+  Description: Per-backend timeout configurable in config.yaml. Backend
+  returns 4xx/5xx → gateway surfaces the status code and error body.
+  Backend returns invalid JSON → gateway returns 502 with detail.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - Timeout configured per backend, defaults to 30s
+    - Backend 500 → gateway returns 502 with original status in detail
+    - Backend 404 → gateway returns 404 with backend response body
+    - Backend returns HTML instead of JSON → 502 'invalid_backend_response'
+
+-- MONTH 3 --
+
+Issue 13: Create LangGraph bridge package and state adapter
+  Description: New Python package at implementation/phase1/langgraph_bridge/.
+  State adapter: WorkflowState dataclass ↔ LangGraph TypedDict state.
+  Load v3 workflow steps as LangGraph nodes. Minimal sequential graph.
+  Difficulty: Hard
+  Acceptance Criteria:
+    - pyproject.toml with langgraph and langgraph-checkpoint-sqlite deps
+    - WorkflowState → LangGraph state conversion (and reverse)
+    - v3 workflow loaded as LangGraph nodes
+    - Sequential graph: node1 → node2 → node3
+    - Test: graph executes 3 nodes in order
+
+Issue 14: Implement LangGraph node → MCP Gateway tool calls
+  Description: LangGraph node makes HTTP POST to MCP Gateway /mcp
+  endpoint. Tool name and params derived from node state. Response
+  parsed and written back into LangGraph state. Error handling: gateway
+  timeout → node retries or fails gracefully.
+  Difficulty: Hard
+  Acceptance Criteria:
+    - LangGraph node calls gateway with correct JSON-RPC body
+    - Tool response flows into next node's state
+    - Gateway 502 → node state updated with error
+    - Gateway timeout → node state updated with timeout error
+    - Test: end-to-end LangGraph → Gateway → Mock Backend → Response
+
+Issue 15: Write LangGraph bridge integration tests
+  Description: Test full stack: LangGraph workflow calls MCP Gateway,
+  gateway routes to mock backend, response flows back through LangGraph
+  state. Test crash recovery: stop mid-workflow, resume from checkpoint.
+  Difficulty: Hard
+  Acceptance Criteria:
+    - test_langgraph_to_gateway_roundtrip passes
+    - test_workflow_resume_after_crash passes
+    - test_gateway_error_handled_in_graph passes
+    - Existing v2_package_workflow runs through LangGraph unchanged
+    - All tests: pytest, CI green
+
+============================================================
+9. READING RESOURCES
+============================================================
+
+ESSENTIAL (Month 1):
+
+1. JSON-RPC 2.0 Specification
+   https://www.jsonrpc.org/specification
+   It's 4 pages. Read the whole thing. Understand: request object,
+   response object, error object, notification (no id).
+
+2. FastAPI Documentation — First Steps
+   https://fastapi.tiangolo.com/tutorial/first-steps/
+   Focus: path operations, request body, response models, HTTPException
+
+3. httpx Documentation — Quickstart
+   https://www.python-httpx.org/quickstart/
+   Focus: async client, making requests, handling responses, timeouts
+
+4. PyYAML Documentation
+   https://pyyaml.org/wiki/PyYAMLDocumentation
+   Focus: yaml.safe_load, nested dictionaries
+
+RECOMMENDED (Month 2):
+
+5. JSON Schema Specification (Draft 2020-12)
+   https://json-schema.org/draft/2020-12/json-schema-core
+   Focus: type, properties, required, additionalProperties
+
+6. jsonschema Python Library
+   https://python-jsonschema.readthedocs.io/
+   Focus: validate(), ValidationError, schema registry
+
+7. GitHub REST API Documentation
+   https://docs.github.com/en/rest
+   Focus: Repositories API, Issues API, authentication
+
+8. Telegram Bot API
+   https://core.telegram.org/bots/api
+   Focus: sendMessage, getUpdates, making requests
+
+RECOMMENDED (Month 3):
+
+9. LangGraph Documentation — Quick Start
+   https://langchain-ai.github.io/langgraph/tutorials/introduction/
+   Focus: StateGraph, add_node, add_edge, compile, invoke
+
+10. LangGraph Checkpointing
+    https://langchain-ai.github.io/langgraph/how-tos/persistence/
+    Focus: SqliteSaver, thread_id, checkpoint structure
+
+11. TypedDict in Python (PEP 589)
+    https://peps.python.org/pep-0589/
+    Focus: class State(TypedDict), required and optional keys
+
+============================================================
+10. SUCCESS CRITERIA
+============================================================
+
+END OF MONTH 1:
+  - You can: explain JSON-RPC 2.0 to another beginner in 2 minutes
+  - You can: build a FastAPI server with routes and error handling
+  - You can: configure and parse YAML in Python
+  - Code: gateway serve works, POST /mcp routes correctly, tests pass
+  - The success condition from CRITICAL_PATH.md is MET:
+    curl → gateway → backend → response round-trip
+
+END OF MONTH 2:
+  - You can: write a JSON Schema that correctly validates API requests
+  - You can: integrate with any REST API that has documentation
+  - You can: explain how middleware works in FastAPI
+  - Code: schema validation layer works, 2 real backends integrated
+
+END OF MONTH 3:
+  - You can: build a LangGraph workflow from scratch
+  - You can: explain how LangGraph state differs from WorkflowState
+  - You can: bridge two systems (LangGraph ↔ Gateway) with clean API
+  - Code: v2_package_workflow runs through LangGraph, survived crash
+
+============================================================
+11. HOW TO GET HELP
+============================================================
+
+1. Read first:
+   - Your own README files (they should answer setup questions)
+   - project_state/CRITICAL_PATH.md (what to build next)
+   - MCP specification: https://spec.modelcontextprotocol.io/
+
+2. Ask Lakshay if:
+   - You need a design decision (library choice, API boundary)
+   - You don't understand an acceptance criterion
+   - You're blocked for more than 2 hours
+   - CI is failing and you can't figure out why
+
+3. Ask other team members:
+   - Ojasvi: authentication, tokens, how auth headers work
+   - Jatin: how to write good tests, test structure
+   - Kapil: documentation conventions, CI/CD
+
+4. When stuck, always bring:
+   - What you tried (exact commands, code snippet)
+   - What error you got (full error message + stack trace)
+   - What you expected to happen
+
+============================================================
+12. FILES AND FOLDERS YOU OWN
+============================================================
+
+implementation/phase1/mcp-gateway/
+  └── gateway/
+      ├── __init__.py
+      ├── server.py          — FastAPI server, /health, /mcp endpoints
+      ├── cli.py             — CLI entrypoint (gateway serve)
+      ├── router.py          — Tool name → backend URL resolution
+      ├── config.py          — YAML config loader and validator
+      ├── validation.py      — jsonschema validation middleware (Month 2)
+      ├── schemas/           — Per-backend JSON Schema files (Month 2)
+      │   ├── echo.json
+      │   ├── github.json
+      │   └── telegram.json
+      └── backends/          — Backend-specific adapters (Month 2)
+          ├── __init__.py
+          ├── github.py
+          └── telegram.py
+
+implementation/phase1/mcp-gateway/
+  ├── config.yaml            — Backend definitions
+  ├── pyproject.toml         — Package metadata, dependencies, scripts
+  ├── README.md              — Setup, run, test instructions
+  └── tests/
+      ├── test_proxy.py
+      ├── test_validation.py
+      ├── test_github_integration.py
+      └── test_telegram_integration.py
+
+implementation/phase1/langgraph_bridge/   (Month 3)
+  ├── __init__.py
+  ├── bridge.py             — Main bridge module
+  ├── state_adapter.py      — WorkflowState ↔ LangGraph state
+  ├── workflow_loader.py    — Load v3 steps as LangGraph nodes
+  ├── pyproject.toml
+  └── tests/
+      ├── test_langgraph_bridge.py
+      └── test_state_adapter.py
+
+============================================================
+END OF LAKSHAY BHARTI ROLE ASSIGNMENT
+============================================================
+If you have questions about any task in this document, ask Lakshay (Founder)
+in the team channel before starting. Do not guess. Ship working code weekly.

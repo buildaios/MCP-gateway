@@ -19,10 +19,9 @@ async def parse_jsonrpc_request(body: bytes) -> Dict[str, Any]:
     if "jsonrpc" not in data or data["jsonrpc"] != "2.0":
         raise JSONRPCParseError("missing jsonrpc version")
         
-    if "method" not in data:
+    if "method" not in data or not isinstance(data["method"], str):
         raise JSONRPCParseError("missing method")
         
-    if "id" not in data:
-        raise JSONRPCParseError("missing id")
+    # 'id' is optional for notifications in JSON-RPC 2.0
         
     return data

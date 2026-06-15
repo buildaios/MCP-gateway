@@ -1,0 +1,95 @@
+================================================================================
+            FEDORA AI OS — AGENTIC FLOW (PLUGGABLE MARKETPLACE)
+================================================================================
+
+USER TASK INTAKE
+----------------
+1. User speaks/types a goal ("Set up my Python dev environment").
+2. L7 UI forwards goal to CEO Agent (L6) via typed contract.
+
+TASK DECOMPOSITION & ROLE ASSIGNMENT
+------------------------------------
+3. CEO Agent decomposes goal into subtasks, each assigned to a specialist
+   *role* (Runtime Executor, Semantic File, Desktop, Memory, etc.).
+4. CEO constructs a LangGraph workflow (L5) with ordered/parallel steps.
+
+ROLE RESOLUTION (PLUGGABLE MARKETPLACE)
+---------------------------------------
+5. For each role in the workflow, the Agent Kernel (L4) looks up the
+   user's currently selected *implementation* from the Agent Registry.
+   - Role: runtime_executor → Selected: Goose (local) OR Claude Code (cloud)
+   - Role: desktop_agent     → Selected: Agent S3 (built‑in)
+   - Role: memory_agent      → Selected: Mem0 + FalkorDB (built‑in)
+6. The registry provides capability requirements, trust boundaries, and
+   required API keys for the chosen implementation.
+
+SECURITY PRE‑FLIGHT (PER SUBTASK)
+----------------------------------
+7. Before delegating a subtask, the Security Agent (L3‑H) evaluates:
+   - Does the user have a valid capability token for this role + action?
+   - What is the required Trust Level (TRUST_0 … TRUST_3)?
+   - Is the chosen agent implementation trusted for this capability?
+8. If TRUST_2 or TRUST_3, the UI (L7) prompts the user for approval.
+   - TRUST_1 actions may post a notification with inline undo.
+9. The Security Agent issues a short‑lived capability token scoped to
+   exactly the subtask's declared parameters.
+
+AGENT ACTIVATION & CONTEXT INJECTION
+------------------------------------
+10. The Agent Kernel (L4) activates the chosen agent instance (or warms
+    a pool instance), loading its model/container as needed.
+11. The Memory Agent (L3‑G) retrieves relevant context:
+    - Personal Memory: user preferences for this task type
+    - Graph Memory: project structure, file relationships
+    - Operational Memory: active session state
+    Only the necessary subset is injected; no raw chat history.
+
+EXECUTION VIA MCP GATEWAY
+--------------------------
+12. The agent performs its work by calling tools. Every tool call routes
+    through the MCP Gateway Agent (L2).
+13. The Gateway:
+    a. Validates the request against the tool's JSON Schema.
+    b. Checks the agent's capability token (scope, expiration).
+    c. Injects OAuth tokens if needed.
+    d. Forwards to the appropriate MCP server (in its own SELinux‑labeled
+       Podman container).
+    e. On failure: retries with exponential backoff, circuit breaker.
+    f. Logs every call to Audit Memory with trace ID.
+
+MEMORY WRITE‑BACK
+-----------------
+14. During execution, new facts are routed by the Memory Agent:
+    - Recurring actions → Personal Memory (after recurrence threshold)
+    - File/project relationships → Graph Memory
+    - Security‑sensitive events → Audit Memory (immutable)
+    - Transient state → Operational Memory (TTL‑managed)
+
+WORKFLOW PROGRESSION & RESILIENCE
+----------------------------------
+15. LangGraph (L5) checkpoints after each step.
+16. If the agent or CEO crashes, the Standby Orchestrator (L3‑B) resumes
+    from the last checkpoint; Reflex Runtime (L11) keeps low‑latency ops alive.
+17. If a subtask fails after max retries, the CEO re‑plans (escalate,
+    fallback to another agent implementation, or ask user).
+
+COMPLETION & AUDIT
+------------------
+18. The workflow completes; the final state is checkpointed.
+19. A summary (actions taken, files changed, approvals given) is shown to
+    the user in the L7 UI.
+20. The full trace (OpenTelemetry) is available in Grafana; any step can
+    be replayed deterministically from its checkpoint.
+
+AGENT MARKETPLACE UPDATE LOOP
+-----------------------------
+21. The Agent Registry is periodically refreshed from the community plugin
+    repository.
+22. Benchmark scores in the registry are updated by the V1 evaluation
+    harness (L5) running weekly against all registered implementations.
+23. Users may switch implementations per role at any time; the new choice
+    takes effect on the next task without restarting the OS.
+
+================================================================================
+                      END OF AGENTIC FLOW DESCRIPTION
+================================================================================

@@ -1,0 +1,576 @@
+============================================================
+FEDORA AI OS — TEAM ASSIGNMENT: OJASVI KHATRI
+============================================================
+Role: Security Engineer
+Focus: Podman Isolation, Secrets Management, SELinux, Threat Modeling
+Generated: 2026-06-08
+Project Lead: Lakshay (Founder)
+============================================================
+
+TABLE OF CONTENTS
+=================
+1. Mission
+2. Why This Role Matters
+3. Fedora AI OS Components Owned
+4. Learning Roadmap
+5. Month 1 Goals (Weeks 1–4)
+6. Month 2 Goals (Weeks 5–8)
+7. Month 3 Goals (Weeks 9–12)
+8. 15 GitHub Issues
+9. Reading Resources
+10. Success Criteria
+11. How to Get Help
+12. Files and Folders You Own
+
+============================================================
+1. MISSION
+============================================================
+
+Make the MCP Gateway secure enough to talk to real services. Your job is to
+ensure that API tokens are never in plaintext, that the gateway runs in a
+locked-down Podman container with dropped capabilities, that SELinux policies
+exist (even if permissive at first), and that every backend connection is
+authenticated. By month 3, you will implement the first version of the
+Security Agent's trust level enforcement — the gating mechanism that decides
+whether an agent action runs silently, notifies the user, or requires explicit
+approval.
+
+============================================================
+2. WHY THIS ROLE MATTERS
+============================================================
+
+The MCP Gateway is the central routing layer for the entire Fedora AI OS.
+Every agent — CEO, Security, Desktop, Runtime — sends tool calls through this
+gateway. If the gateway leaks API keys or runs with root privileges, the
+entire system is compromised before anything else ships.
+
+Right now the gateway is a scaffold with NO security. No OAuth. No token
+management. No container isolation. No SELinux policy. No threat model.
+
+You close that gap. Your work is what makes it safe for the gateway to talk to
+GitHub, Telegram, Google Calendar, and every other backend the project depends
+on. Without your work, the gateway cannot connect to any real service.
+
+============================================================
+3. FEDORA AI OS COMPONENTS OWNED
+============================================================
+
+You own three security layers, in priority order:
+
+A. SECRETS MANAGEMENT
+   - OAuth token storage in Linux Secret Service API (not plaintext files)
+   - Token rotation: refresh before expiry, support rotation
+   - Authorization header injection into proxied requests
+   - Multiple backend support: each backend gets its own credential
+   - Files: implementation/phase1/mcp-gateway/gateway/auth.py
+
+B. PODMAN CONTAINER SECURITY
+   - Rootless Podman for ALL services (gateway, Redis, Goose, OTel collector)
+   - Dropped capabilities per container (cap_drop=ALL, cap_add minimal)
+   - Read-only rootfs where possible
+   - No host network mode (use podman network)
+   - Security-relevant Quadlet directives verified
+   - Files: implementation/phase1/containers/
+
+C. SELINUX POLICY (MONTHS 2–3)
+   - udica-generated per-service policies
+   - Start in permissive mode, log violations, refine
+   - Graduated enforcing mode for gateway container
+   - Upstream intention: Fedora SELinux SIG submission
+   - Files: implementation/phase1/selinux/
+
+By month 3, you will also build:
+
+D. SECURITY AGENT — TRUST LEVEL ENFORCEMENT
+   - TRUST_0: silent, read-only, auto-approved
+   - TRUST_1: notification + inline undo capability
+   - TRUST_2: confirm/deny user prompt
+   - TRUST_3: modal with diff preview
+   - Escalation rules: scope creep → +1 level; unexpected network → TRUST_3
+   - Revocation: 3 violations in 60s → suspend agent
+   - Files: implementation/phase1/security_agent/
+
+============================================================
+4. LEARNING ROADMAP
+============================================================
+
+You are studying cybersecurity. This role maps directly to your learning path.
+
+WEEK 1–2: Secrets Management Fundamentals
+  - Read: OAuth 2.0 RFC 6749 (sections 1–5)
+  - Read: Linux Secret Service API (freedesktop.org spec)
+  - Learn: Python `keyring` library
+  - Learn: HTTP Authorization header format (Bearer tokens)
+  - Practice: Store and retrieve a token from GNOME Keyring
+
+WEEK 3–4: Container Security
+  - Read: Podman rootless architecture (docs.podman.io)
+  - Read: Linux capabilities(7) man page
+  - Learn: Podman Quadlet format (.container files)
+  - Learn: `podman inspect` to verify security settings
+  - Practice: Run Redis in rootless Podman with dropped capabilities
+
+WEEK 5–6: OAuth in Practice
+  - Learn: Client credentials flow vs authorization code flow
+  - Learn: Token refresh cycle (detect expiry, request new token)
+  - Practice: Register a test OAuth app on GitHub, get a token
+  - Practice: Refresh token programmatically
+
+WEEK 7–8: SELinux Basics
+  - Read: Fedora SELinux User Guide
+  - Read: SELinux Coloring Book (free PDF, Red Hat)
+  - Learn: `ausearch`, `audit2allow`, `sealert`
+  - Learn: `udica` for container policy generation
+  - Practice: Generate a policy for a Podman container, run in permissive
+
+WEEK 9–10: Threat Modeling
+  - Read: STRIDE methodology (Microsoft)
+  - Read: OWASP Top 10 for APIs (2023)
+  - Practice: Threat model the MCP Gateway (what can go wrong?)
+  - Document: Threat model in docs/security/threat-model.md
+
+WEEK 11–12: Trust Systems
+  - Read: Capability-based security (object-capability model)
+  - Learn: Middleware patterns in FastAPI/Starlette
+  - Practice: Write a middleware that checks a trust level and blocks
+
+============================================================
+5. MONTH 1 GOALS (WEEKS 1–4)
+============================================================
+
+GOAL 1: OAuth Token Manager Working
+  - Tokens stored in system keyring via `keyring` library
+  - NOT in config.yaml (that file is public in git)
+  - Token refresh before expiry works automatically
+  - Authorization header injected into all proxied HTTP requests
+  - Multiple backends supported: GitHub, Telegram each have own token
+  - Tested: mock OAuth endpoint, token refresh cycle, expiry handling
+
+GOAL 2: Redis Running Securely
+  - Redis 7 Alpine in rootless Podman container
+  - Quadlet .container file with:
+    - UserNS=keep-id
+    - SecurityLabelFileType=redis_container.process
+    - DropCapability=ALL
+    - AddCapability=SETUID SETGID (minimal needed)
+    - ReadOnly=true (if possible on /data volume)
+  - `podman inspect` verification script that checks all security fields
+  - Service file: systemctl --user start redis-aios
+
+GOAL 3: Security Documentation Started
+  - docs/security/README.md — overview of security approach
+  - docs/security/token-management.md — how tokens are stored and rotated
+  - docs/security/container-hardening.md — per-container security baseline
+
+DELIVERABLES (end of Month 1):
+  - gateway/auth.py — OAuthTokenManager class (tested)
+  - gateway/tests/test_auth.py — full test coverage
+  - containers/redis.container — Quadlet definition (verified)
+  - scripts/verify-container-security.sh — automated security check
+  - docs/security/ — 3 markdown files
+
+============================================================
+6. MONTH 2 GOALS (WEEKS 5–8)
+============================================================
+
+GOAL 1: Gateway Runs in Secure Podman Container
+  - Gateway itself runs in rootless Podman
+  - Quadlet .container file for MCP Gateway
+  - Same security hardening as Redis: dropped capabilities, read-only rootfs
+  - Health check: podman healthcheck on /health endpoint
+  - SELinux: udica-generated policy, permissive mode initially
+  - Verified: AVC denials logged but not enforced
+
+GOAL 2: SELinux Policy Generation Pipeline
+  - Script: generate-selinux-policy.sh
+    - Runs container in permissive mode
+    - Exercises all endpoints (via test suite)
+    - Collects AVC denials via ausearch
+    - Runs udica to generate policy
+    - Outputs .cil or .pp file
+  - Policy tested: container runs under generated policy
+  - Documented: how to regenerate policy after code changes
+
+GOAL 3: Goose Container Security
+  - Review existing Goose Quadlet definition (from another team member)
+  - Verify security: dropped capabilities, no host network, no privileged
+  - Add security audit section to Goose documentation
+  - Test: Goose cannot escape container or access host filesystem outside bind-mount
+
+GOAL 4: OAuth Expiry and Rotation Tests
+  - Automated test that simulates token expiry
+  - Verifies automatic refresh occurs
+  - Verifies old token is invalidated
+  - Performance: refresh < 500ms (don't block requests)
+
+DELIVERABLES (end of Month 2):
+  - containers/gateway.container — Quadlet definition (verified)
+  - scripts/generate-selinux-policy.sh — automated pipeline
+  - implementation/phase1/selinux/ — generated policies
+  - tests/test_auth_expiry.py — expiry and rotation tests
+  - docs/security/selinux.md — policy generation guide
+
+============================================================
+7. MONTH 3 GOALS (WEEKS 9–12)
+============================================================
+
+GOAL 1: Security Agent — Trust Level Enforcement (MVP)
+  - Middleware in MCP Gateway that checks trust level before routing
+  - TRUST_0: passes through silently (read-only operations)
+  - TRUST_1: logs + notifies, but auto-approves (low-risk writes)
+  - TRUST_2: blocks and returns "approval required" response
+  - TRUST_3: blocks with full diff preview in response body
+  - Config-driven: which tool → which trust level (YAML config)
+  - Tested: escalate from TRUST_0 to TRUST_2, verify blocked
+
+GOAL 2: Revocation System
+  - Track violations per agent (in Redis, TTL 60s)
+  - 3 violations in 60s → agent suspended (flag in Redis, TTL 5min)
+  - Suspended agent: all requests return 403
+  - Auto-recovery: after 5 minutes, suspension expires
+  - Manual unblock: API endpoint to clear suspension
+
+GOAL 3: Threat Model Document
+  - docs/security/threat-model.md
+  - STRIDE analysis of MCP Gateway
+  - Attack surface: network, token storage, container escape, SELinux bypass
+  - Mitigations for each threat
+  - Reviewed by Lakshay
+
+GOAL 4: Enforcing Mode Rollout Plan
+  - Document step-by-step plan for SELinux enforcing mode
+  - Graduated rollout: permissive → audit → enforce (one service at a time)
+  - Rollback procedure if enforcing mode breaks anything
+  - This is a PLAN, not implementation (enforcing mode is V2 milestone)
+
+DELIVERABLES (end of Month 3):
+  - implementation/phase1/security_agent/trust_middleware.py
+  - implementation/phase1/security_agent/revocation.py
+  - tests/test_trust_enforcement.py
+  - tests/test_revocation.py
+  - docs/security/threat-model.md
+  - docs/security/enforcing-mode-plan.md
+
+============================================================
+8. 15 GITHUB ISSUES
+============================================================
+
+-- MONTH 1 --
+
+Issue 1: Implement OAuth token storage via Secret Service API
+  Description: Store OAuth tokens in system keyring (GNOME Keyring via
+  keyring library). Tokens must NEVER appear in config.yaml or any file
+  tracked by git. Support multiple backends (each with own token entry).
+  Difficulty: Medium
+  Acceptance Criteria:
+    - keyring.get_password('fedora-ai-os', 'github-token') returns token
+    - No plaintext tokens in any file in the repo
+    - Test: store, retrieve, delete cycle passes
+
+Issue 2: Implement token refresh and Authorization header injection
+  Description: Before every proxied request, check token expiry. If expired
+  or expiring within 60 seconds, refresh proactively. Inject Authorization
+  header into forwarded request. Handle refresh failure gracefully (retry
+  once, then return 502 with auth failure detail).
+  Difficulty: Medium
+  Acceptance Criteria:
+    - Token refreshed when within 60s of expiry
+    - Authorization: Bearer <token> present in forwarded request
+    - Refresh failure → 502 with 'auth_token_refresh_failed' error code
+    - Test: mock OAuth endpoint, force expiry, verify refresh
+
+Issue 3: Write OAuth integration tests
+  Description: Full test suite for auth module. Mock OAuth server that can
+  issue tokens, reject refresh, and simulate expiry.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - test_token_store_and_retrieve passes
+    - test_token_refresh_before_expiry passes
+    - test_expired_token_refresh_fails passes
+    - test_authorization_header_injected passes
+    - All tests run via pytest
+
+Issue 4: Set up Redis in rootless Podman with security hardening
+  Description: Create Quadlet .container file for Redis 7 Alpine. Apply
+  security hardening: rootless, dropped capabilities, read-only rootfs.
+  Create verification script.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - systemctl --user start redis-aios works
+    - podman inspect redis-aios shows: Rootless=true, CapDrop includes ALL
+    - Redis responds to PING from Python client
+    - verify-container-security.sh exits 0 when all checks pass
+
+Issue 5: Create container security verification script
+  Description: Bash script that runs `podman inspect` on a given container
+  and verifies: rootless, capabilities dropped, no privileged mode, no host
+  network, SELinux label present. Outputs pass/fail per check.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - ./scripts/verify-container-security.sh redis-aios exits 0
+    - Script outputs one line per check with [PASS] or [FAIL]
+    - Works on any Podman container name passed as argument
+
+Issue 6: Write security documentation (overview, token mgmt, hardening)
+  Description: Create docs/security/ directory with 3 files: README.md
+  (overview of security approach), token-management.md (how tokens are
+  stored and rotated), container-hardening.md (per-container baseline).
+  Difficulty: Easy
+  Acceptance Criteria:
+    - All 3 files exist in docs/security/
+    - Each file is at least 500 words
+    - Token management doc includes code examples
+    - Reviewed and approved by Lakshay
+
+-- MONTH 2 --
+
+Issue 7: Create MCP Gateway Quadlet container definition
+  Description: Package the gateway itself as a rootless Podman container
+  with Quadlet. Bind-mount the config directory, drop capabilities, set
+  SELinux context. Include podman healthcheck.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - systemctl --user start mcp-gateway works
+    - Gateway responds to curl localhost:8000/health
+    - podman healthcheck passes ('healthy' status)
+    - Hardening verified by verify-container-security.sh
+
+Issue 8: Generate initial SELinux policy for Gateway container
+  Description: Use udica to generate a container policy. Run gateway in
+  permissive mode, exercise all endpoints via tests, collect AVC denials,
+  generate policy. Policy compiles and loads without errors.
+  Difficulty: Hard
+  Acceptance Criteria:
+    - Policy .cil or .pp file generated and loaded
+    - Gateway runs under the policy (permissive mode)
+    - AVC denials logged but not enforced
+    - generate-selinux-policy.sh automates the process
+
+Issue 9: Automate SELinux policy generation pipeline
+  Description: Shell script that: starts container in permissive mode, runs
+  the gateway test suite, collects AVC denials via ausearch, runs udica to
+  generate policy, outputs the policy file. Must be re-runnable.
+  Difficulty: Hard
+  Acceptance Criteria:
+    - ./scripts/generate-selinux-policy.sh exits 0
+    - Output policy file is non-empty and syntactically valid
+    - Script documents required dependencies (udica, setools-console)
+    - Tested on a clean Fedora system
+
+Issue 10: Document SELinux policy generation process
+  Description: Write docs/security/selinux.md. Explain: what SELinux does,
+  why per-service policies matter, how to generate a policy for a new
+  container, how to test in permissive mode, how to read AVC denials.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - Document is at least 1000 words
+    - Includes step-by-step commands (copy-paste runnable)
+    - Includes troubleshooting section for common AVC denials
+
+Issue 11: Security audit of Goose Quadlet definition
+  Description: Review the Goose container definition (built by another team
+  member). Verify: rootless, dropped capabilities, no privileged mode, no
+  host network, bind-mount with :Z for SELinux. Write audit report.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - Audit checklist: all 6 security checks pass or issues documented
+    - Any issues filed as GitHub issues with severity label
+    - Report saved as docs/security/goose-audit.md
+
+-- MONTH 3 --
+
+Issue 12: Implement TRUST_0 and TRUST_1 middleware
+  Description: Gateway middleware that reads trust level from request
+  context. TRUST_0: read-only operations pass through silently. TRUST_1:
+  low-risk writes pass through but are logged and notification flag set.
+  Trust level determined by tool name → level mapping in config.yaml.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - TRUST_0 tool calls pass through unchanged
+    - TRUST_1 tool calls pass through with X-Trust-Level: 1 header
+    - Audit event written for TRUST_1 operations
+    - Config-driven: trust_levels section in config.yaml
+
+Issue 13: Implement TRUST_2 and TRUST_3 enforcement
+  Description: Extend middleware. TRUST_2: return 403 with "approval
+  required" body. TRUST_3: return 403 with full request diff in body.
+  Approval is a separate endpoint: POST /approve with approval token.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - TRUST_2 request returns 403 + JSON with tool name and params
+    - TRUST_3 request returns 403 + full request/params diff
+    - POST /approve with valid token re-executes the held request
+    - Invalid/expired approval token returns 401
+
+Issue 14: Implement agent revocation system
+  Description: Track violations per agent_id in Redis with 60s TTL.
+  3 violations in 60s → agent suspended (flag in Redis, 5min TTL).
+  Suspended agent gets 403 on all requests. Auto-recovery after TTL.
+  Manual unblock via POST /admin/unblock/{agent_id}.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - 1st violation: counted, not blocked
+    - 2nd violation: counted, not blocked
+    - 3rd violation: agent suspended, all requests return 403
+    - After 5 minutes: suspension expires, agent can request again
+    - POST /admin/unblock clears suspension immediately
+
+Issue 15: Write threat model for MCP Gateway
+  Description: STRIDE analysis of the MCP Gateway. Identify threats in each
+  category: Spoofing, Tampering, Repudiation, Information Disclosure, Denial
+  of Service, Elevation of Privilege. Document mitigations.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - Document covers all 6 STRIDE categories
+    - At least 3 threats per category
+    - Each threat has a concrete mitigation
+    - Reviewed and approved by Lakshay
+    - Saved as docs/security/threat-model.md
+
+============================================================
+9. READING RESOURCES
+============================================================
+
+ESSENTIAL (read in Month 1):
+
+1. OAuth 2.0 Simplified — Aaron Parecki
+   https://www.oauth.com/ (free online book)
+   Focus: Chapters 1–6 (authorization code, client credentials, tokens)
+
+2. Linux Secret Service API Specification
+   https://specifications.freedesktop.org/secret-service/latest/
+   Focus: Sections on storing/retrieving secrets, session management
+
+3. Python keyring library documentation
+   https://pypi.org/project/keyring/
+   Focus: get_password, set_password, delete_password
+
+4. Podman Rootless Tutorial
+   https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md
+   Focus: User namespaces, capabilities, SELinux with :Z
+
+5. Podman Quadlet Documentation
+   https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html
+   Focus: .container file format, security directives
+
+RECOMMENDED (read in Month 2):
+
+6. SELinux Coloring Book — Red Hat
+   Free PDF: search "SELinux Coloring Book Red Hat"
+   Best beginner resource for SELinux. Read the whole thing.
+
+7. Fedora SELinux User Guide
+   https://docs.fedoraproject.org/en-US/quick-docs/selinux-getting-started/
+   Focus: permissive vs enforcing, ausearch, audit2allow
+
+8. udica: SELinux Policy Generator for Containers
+   https://github.com/containers/udica
+   Focus: HOWTO section, generate and inspect policies
+
+9. Linux Capabilities man page
+   man 7 capabilities
+   Focus: CAP_SYS_ADMIN, CAP_NET_RAW, and what each container needs
+
+RECOMMENDED (read in Month 3):
+
+10. STRIDE Threat Modeling — Microsoft
+    https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats
+    Focus: Each STRIDE category, example threats
+
+11. OWASP API Security Top 10 (2023)
+    https://owasp.org/API-Security/
+    Focus: Broken authentication, excessive data exposure, lack of resources
+
+12. Object-Capability Model
+    https://en.wikipedia.org/wiki/Object-capability_model
+    Focus: How capabilities differ from ACLs, revocation
+
+============================================================
+10. SUCCESS CRITERIA
+============================================================
+
+END OF MONTH 1:
+  - You can: explain OAuth 2.0 client credentials flow to another beginner
+  - You can: store and retrieve a secret from GNOME Keyring via Python
+  - You can: run a rootless Podman container with dropped capabilities
+  - You can: verify container security with podman inspect
+  - Code: auth.py works, tests pass, reviewed by Lakshay
+
+END OF MONTH 2:
+  - You can: explain SELinux types, contexts, and why they matter
+  - You can: generate a udica policy from a running container
+  - You can: read AVC denials and understand what was blocked
+  - Code: gateway runs in secure Podman container, policy generated
+
+END OF MONTH 3:
+  - You can: threat model any HTTP API gateway using STRIDE
+  - You can: explain how trust levels work in governed autonomy
+  - You can: implement middleware that gates requests by trust level
+  - Code: Security Agent MVP works, all tests pass, threat model reviewed
+
+============================================================
+11. HOW TO GET HELP
+============================================================
+
+1. Read the docs first:
+   - docs/security/ (your own documentation)
+   - project_state/CURRENT_STATE.md (what exists)
+   - project_state/ARCHITECTURE_INDEX.md (security stack section)
+
+2. Ask Lakshay if:
+   - You're blocked for more than 2 hours
+   - You don't understand an acceptance criterion
+   - You need a design decision (e.g., file format, library choice)
+
+3. Ask other team members:
+   - Lakshay Bharti: MCP Gateway internals, how routing works
+   - Jatin: testing approach, how to write testable code
+   - Kapil: documentation formatting, CI/CD questions
+
+4. When stuck, always bring:
+   - What you tried (commands, code)
+   - What error you got (exact error message)
+   - What you expected to happen
+
+============================================================
+12. FILES AND FOLDERS YOU OWN
+============================================================
+
+implementation/phase1/mcp-gateway/gateway/auth.py
+  - OAuthTokenManager class
+  - Token storage, refresh, Authorization header injection
+
+implementation/phase1/mcp-gateway/tests/test_auth.py
+  - All OAuth-related tests
+
+implementation/phase1/containers/
+  - redis.container — Redis Quadlet definition
+  - gateway.container — MCP Gateway Quadlet definition
+  - README.md — container overview
+
+implementation/phase1/selinux/
+  - Generated .cil/.pp policies
+  - README.md — policy regeneration instructions
+
+implementation/phase1/security_agent/
+  - trust_middleware.py — TRUST_0 through TRUST_3 enforcement
+  - revocation.py — violation tracking and suspension
+
+scripts/
+  - verify-container-security.sh — automated hardening check
+  - generate-selinux-policy.sh — automated policy generation
+
+docs/security/
+  - README.md — overview
+  - token-management.md
+  - container-hardening.md
+  - selinux.md
+  - goose-audit.md
+  - threat-model.md
+  - enforcing-mode-plan.md
+
+============================================================
+END OF OJASVI KHATRI ROLE ASSIGNMENT
+============================================================
+If you have questions about any task in this document, ask Lakshay in the
+team channel before starting. Do not guess. Ship working code every week.

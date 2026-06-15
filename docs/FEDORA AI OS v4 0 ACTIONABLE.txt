@@ -1,0 +1,141 @@
+================================================================================
+            FEDORA AI OS v4.0 — ACTIONABLE IMPLEMENTATION BLUEPRINT
+================================================================================
+
+CORE ARCHITECTURE (7 LAYERS)
+L7: GNOME Shell UI (V2), progressive disclosure, workspace switcher
+L6: CEO Agent + Standby Orchestrator, conflict arbitration
+L5: LangGraph workflows, checkpoint/replay, evaluation harness
+L4: Agent Kernel (AIOS/Cerebrum) – LLM scheduling, context mgmt, lifecycle
+L3: Specialist Agents (see below)
+L2: Runtime – Podman, MCP Gateway, Redis, OpenTelemetry, Grafana, eBPF
+L1: Unmodified Fedora/GNOME/Wayland/systemd/SELinux
+
+NEW OR SIGNIFICANTLY ENHANCED COMPONENTS
+- MCP Gateway Agent (L2): Centralized auth, retry, circuit breaker, schema validation
+- Reflex Runtime (L6 survivable): Direct DBus for mute/volume/workspace (<100 ms, no LLM)
+- Habit Inference Module (V2): Offline pattern miner, separate from Memory Agent
+- Conflict Resolution Module (L6): Priority-queue arbitration for agent resource contention
+- Typed Inter-Agent Contracts: Protobuf/JSON Schema enforced in CI
+
+SPECIALIST AGENTS (L3)
+CEO         – task decomposition, delegation, policy enforcement
+Standby     – passive failover, resumes from LangGraph checkpoint
+Desktop     – AT-SPI2 priority stack (Portals → DBus → GSettings → vision → synthetic)
+             used for multi‑app workflows, headless research, accessibility
+Runtime     – Goose (Fedora 43+ RPM) in rootless Podman; terminal, browser, files
+Semantic    – vector store + graph traversal + metadata filters for meaning‑first file ops
+Memory      – 4 tiers (Personal, Operational, Graph, Audit) with access control
+Security    – rule‑based trust scoring, capability tokens, runtime revocation
+Demo Learn  – OpenAdapt (V3), record → generalise → replay
+MCP Gateway – reverse proxy, schema validate, OAuth, circuit breakers, health checks
+
+MEMORY TIERS (ACCESS‑CONTROLLED)
+Personal    – long‑term preferences & habits (Mem0/A‑MEM), promoted after recurrence ≥3
+Operational – active task state, session context (Redis, TTL‑managed)
+Graph       – entity relationships, project dependencies (FalkorDB/Neo4j)
+Audit       – append‑only, immutable, tamper‑evident (SQLite)
+
+SECURITY STACK (DEFENCE IN DEPTH)
+1. SELinux domain per agent (mcp_file_reader_t, mcp_desktop_t, etc.)
+2. Rootless Podman containers with dropped capabilities
+3. seccomp per container
+4. Namespace isolation (user, network, mount, PID)
+5. Capability tokens at Agent Kernel
+6. Trust levels (TRUST_0 … TRUST_3) with escalation
+7. MCP Gateway auth + schema validation + reverse proxy
+8. eBPF network policy (V2)
+9. Rollback for all mutating ops
+10. Immutable audit logs + runtime capability revocation
+
+SELINUX PHASED DEPLOYMENT
+Phase 0 (V1): systemd sandboxing, seccomp, capability dropping, namespace isolation
+Phase 1 (V1): udica‑generated policies, permissive mode + audit logging
+Phase 2 (V2): audit2allow refinement, graduated enforcing mode
+Phase 3 (V2/V3): upstream submission to Fedora SELinux SIG
+
+TRUST LEVELS & ESCALATION
+TRUST_0 – silent, read‑only (e.g., read file)
+TRUST_1 – notification + inline undo (create file, open app)
+TRUST_2 – confirm/deny (modify system setting)
+TRUST_3 – modal with diff preview (install software, edit security config)
+Escalation: scope creep → +1 level; unexpected network → TRUST_3; trust degradation → +1 level
+Revocation: 3 policy violations/60s, anomalous syscalls, trust score <20 → suspend agent
+
+LLM ROUTING (HYBRID LOCAL/CLOUD)
+Trivial:   Reflex Runtime (no LLM)
+Simple:    local 1–3B quantized (8 GB RAM, CPU)
+Medium:    local 7B Q4_K_M (16 GB RAM, CPU; 8–15 tok/s)
+Complex:   local 13B+ or cloud API (user API key or community pool)
+Sensitive data stays local; router selects cheapest backend matching task complexity.
+
+HARDWARE REALITIES (QUANTIZED MODELS)
+Minimum:    16 GB RAM, x86‑64 CPU (runs 7B Q4)
+Recommended: 32 GB RAM, discrete GPU for vision fallback
+All local inference uses GGUF quantisation (llama.cpp/Ollama/RamaLama).
+GPU‑metered vision fallback (capped 30 % utilisation).
+
+FAILURE CONTAINMENT MATRIX
+Vision fail → AT‑SPI
+AT‑SPI fail → vision (GPU‑metered)
+CEO crash → Standby Orchestrator, Reflex Runtime survives
+Workflow crash → LangGraph checkpoint recovery
+Graph DB fail → semantic search disabled, others continue
+Cloud outage → local LLM fallback, user notified
+Memory tier fail → isolate tier, others unaffected
+Security Agent fail → block TRUST_1+ actions, TRUST_0 continues
+eBPF fail → block network for agent, fail‑closed
+
+MCP GATEWAY BUILD PLAN (4–6 WEEKS, standalone deliverable)
+Week 1‑2: core proxy – accept MCP, forward to backends, return responses (no auth)
+Week 3: OAuth token storage, refresh, injection
+Week 4: JSON Schema validation, health‑check pings
+Week 5: retry with exponential backoff, circuit breaker, dead‑letter queue
+Week 6: Audit Memory integration, status dashboard
+Components: mcp Python SDK, oauthlib, Secret Service API, jsonschema, httpx, SQLite
+
+DEVELOPMENT ROADMAP
+
+V1 — FOUNDATION (8–10 weeks solo)
+Scope:
+  Goose + MCP in rootless Podman (Quadlet)
+  Reflex Runtime systemd service
+  MCP Gateway (basic proxy, weeks 1‑2)
+  SQLite operational memory
+  LangGraph checkpointing (SQLite)
+  DBus bridge (Python ↔ Goose)
+  TRUST_3 modal approval, TRUST_1 notification tray
+  OpenTelemetry on all agents
+  Grafana basic dashboards
+  AT‑SPI benchmark baseline (no automation)
+  Typed contracts (Protobuf)
+Go/No‑Go: workflow completion ≥90 %, CEO failover <10 s, traces visible, MCP Gateway >99 % routing success, Reflex <100 ms
+Excluded: GNOME extension, semantic memory, vision fallback, eBPF, multi‑agent
+
+V2 — INTELLIGENCE EXPANSION (months 9–18)
+  Semantic memory (Mem0 + vector DB), graph memory, GNOME Shell extension,
+  adaptive interruption (contextual bandit), semantic files, vision fallback,
+  eBPF policy, SELinux enforcing, plugin API v1.0
+  Go/No‑Go: AT‑SPI ≥85 %, vision fallback <15 %, dismissal <20 %, memory <100 ms
+
+V3 — ADVANCED COGNITION (months 19–30)
+  OpenAdapt, speculative sandboxes (eBPF syscall tracing), peer consensus,
+  cross‑device, deterministic replay, plugin registry
+
+BENCHMARK SUITE (V1)
+AT‑SPI success rate (target ≥85 %), vision fallback rate (<15 %),
+workflow completion (≥90 %), rollback success (100 %),
+checkpoint recovery (<5 s), interruption dismissal (<20 %),
+memory retrieval (<100 ms), MCP Gateway success (>99 %)
+
+COMMUNITY PATHWAY
+1. Existing Fedora AI/ML SIG participation (Matrix #ai:fedoraproject.org)
+2. Innovation Lifecycle → Sandbox entry (time‑limited trademark use, Council ticket)
+3. Build MCP Gateway as first deliverable → solves immediate SIG pain point
+4. Demonstrate V1 prototype → submit Sandbox Review metrics
+5. Curation → FESCo, Infrastructure, Mindshare alignment
+6. Integration → formal Change Proposal
+
+================================================================================
+                            END OF ACTIONABLE BLUEPRINT
+================================================================================

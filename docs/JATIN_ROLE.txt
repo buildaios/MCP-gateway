@@ -1,0 +1,580 @@
+============================================================
+FEDORA AI OS — TEAM ASSIGNMENT: JATIN GARG
+============================================================
+Role: Quality Assurance & Reliability Engineer
+Focus: Testing, Benchmarks, Bug Reproduction, Integration Validation
+Generated: 2026-06-08
+Project Lead: Lakshay (Founder)
+============================================================
+
+TABLE OF CONTENTS
+=================
+1. Mission
+2. Why This Role Matters
+3. Fedora AI OS Components Owned
+4. Learning Roadmap
+5. Month 1 Goals (Weeks 1–4)
+6. Month 2 Goals (Weeks 5–8)
+7. Month 3 Goals (Weeks 9–12)
+8. 15 GitHub Issues
+9. Reading Resources
+10. Success Criteria
+11. How to Get Help
+12. Files and Folders You Own
+
+============================================================
+1. MISSION
+============================================================
+
+You are the gatekeeper of quality. Every line of code that ships to users
+must pass through tests you designed, benchmarks you ran, and validation
+you performed. Your job is to build the test infrastructure for the MCP
+Gateway, write integration tests that catch bugs before they reach users,
+create benchmark suites that measure performance, and provide reliable
+bug reproduction steps when something breaks.
+
+You are not writing the gateway itself — Lakshay Bharti owns that. You are
+testing it. If the gateway claims to route requests correctly, you prove it
+(or prove it doesn't). If Ojasvi's auth module claims to refresh tokens, you
+write the test that forces token expiry and verifies the refresh.
+
+A beginner who can write good tests is more valuable than a beginner who
+can write features, because the tester makes every other team member better.
+
+============================================================
+2. WHY THIS ROLE MATTERS
+============================================================
+
+The current project has a solid test foundation:
+
+  From CURRENT_STATE.md:
+  - 6 reliability tests (split-brain, compensation cascade, atomic failure,
+    time jump, zombie management, backup recovery) — all passing
+  - Production readiness suite: Chaos Monkey with 30-step workflow under
+    random SIGKILL, all 30 artifacts intact after recovery
+
+This testing culture was built for the workflow engine. It does NOT exist
+for the MCP Gateway, which currently has ZERO tests.
+
+The CRITICAL_PATH.md says the gateway is the next bottleneck. NEXT_ACTIONS.md
+has tasks #9 (Gateway Integration Tests) and broader testing needs across
+every gateway subsystem. Your work is what prevents the gateway from shipping
+with broken routing, leaking tokens, or crashing under load.
+
+Without you, the gateway goes to users untested. With you, every PR includes
+tests that prove the code works. That's the difference between a prototype
+and production-ready infrastructure.
+
+============================================================
+3. COMPONENTS OWNED
+============================================================
+
+A. MCP GATEWAY TEST SUITE (Month 1–2)
+   - Integration tests: full round-trip through gateway to mock backend
+   - Error scenario tests: timeout, unreachable backend, bad input
+   - Auth tests: token storage, refresh, expiry, header injection
+   - Validation tests: schema compliance, edge cases
+   - Resilience tests: retry, circuit breaker, dead-letter queue
+   - Test infrastructure: mock servers, test fixtures, test data
+   - Files: implementation/phase1/mcp-gateway/tests/
+
+B. BENCHMARK SUITE (Month 2)
+   - Gateway latency: p50, p95, p99 (target: p95 < 100ms for proxy)
+   - Throughput: requests/second under load
+   - Memory usage: steady state and under load
+   - Backend health check frequency
+   - Benchmark scripts: reproducible, documented
+   - Files: implementation/phase1/benchmarks/
+
+C. BUG REPRODUCTION FRAMEWORK (Month 2–3)
+   - Template for bug reports: description, steps, expected, actual, logs
+   - Reproduction scripts: minimal code that triggers the bug
+   - Regression tests: every fixed bug gets a test that proves it's fixed
+   - Files: implementation/phase1/tests/regression/
+
+D. CHAOS TESTING FOR GATEWAY (Month 3)
+   - Extend the workflow engine's Chaos Monkey to the gateway
+   - Random backend failures, network latency, partial responses
+   - Verify: gateway handles all failure modes gracefully
+   - Files: implementation/phase1/tests/chaos/
+
+============================================================
+4. LEARNING ROADMAP
+============================================================
+
+WEEK 1–2: pytest Fundamentals
+  - Learn: pytest basics — test functions, assertions, fixtures
+  - Learn: pytest markers, parametrize, skip/xfail
+  - Learn: pytest-cov for coverage reports
+  - Practice: Write 10 tests for a simple Python function
+
+WEEK 3–4: HTTP Testing
+  - Learn: httpx test client (ASGI transport for FastAPI)
+  - Learn: How to mock HTTP responses (responses library or httpx MockTransport)
+  - Learn: How to test async code with pytest-asyncio
+  - Practice: Write integration tests for a FastAPI endpoint
+
+WEEK 5–6: Mocking and Fixtures
+  - Learn: unittest.mock (Mock, MagicMock, patch)
+  - Learn: pytest fixtures — scope, autouse, yield for teardown
+  - Learn: Factory pattern for test data
+  - Practice: Create a mock OAuth server that returns controlled responses
+
+WEEK 7–8: Benchmarking
+  - Learn: time.perf_counter for high-precision timing
+  - Learn: statistics module (mean, median, stdev, quantiles)
+  - Learn: memory_profiler for memory tracking
+  - Practice: Benchmark an HTTP endpoint with 1000 requests
+
+WEEK 9–10: Chaos Engineering
+  - Learn: Chaos engineering principles (Netflix Simian Army)
+  - Learn: How to inject failures (terminate process, block port, add latency)
+  - Learn: signal module for sending SIGKILL/SIGTERM
+  - Practice: Write a script that randomly kills a server and verifies recovery
+
+WEEK 11–12: Regression Testing
+  - Learn: How to write a minimal reproduction case
+  - Learn: git bisect for finding when a bug was introduced
+  - Learn: How to organize regression tests (one file per bug)
+  - Practice: Take a real bug, reproduce it, fix it, write a test
+
+============================================================
+5. MONTH 1 GOALS (WEEKS 1–4)
+============================================================
+
+GOAL 1: Gateway Integration Test Suite
+  - Test the core proxy: successful round-trip through gateway to mock backend
+  - Test error handling: 502 on unreachable backend, 400 on invalid JSON-RPC
+  - Test unknown tool → 404
+  - Test health endpoint → 200
+  - Test config loading: valid config loads, invalid config raises error
+  - All tests in implementation/phase1/mcp-gateway/tests/
+  - Coverage target: >80% on gateway/router.py and gateway/server.py
+
+GOAL 2: Mock Backend Server
+  - Build a reusable mock backend that can be configured to:
+    - Return success with controlled response
+    - Return an error (500)
+    - Simulate timeout (sleep longer than gateway timeout)
+    - Return malformed JSON
+  - Used by all gateway tests (your tests and Lakshay Bharti's)
+  - Documented so other team members can use it
+
+GOAL 3: Test the Existing Workflow Engine
+  - Run all 6 reliability tests, verify they still pass
+  - Run the production readiness suite (chaos monkey)
+  - Run the stress tests
+  - If any test fails: document, file issue, tag Lakshay (Founder)
+  - Goal: confirm the foundation is solid before gateway ships on top
+
+DELIVERABLES (end of Month 1):
+  - tests/test_proxy_integration.py — 5+ tests
+  - tests/test_error_handling.py — 4+ tests
+  - tests/mock_backend.py — reusable mock HTTP server
+  - tests/conftest.py — shared fixtures (mock backend, test client)
+  - docs/testing/README.md — how to run tests, how to use mock backend
+  - Report: workflow engine test results (pass/fail per test)
+
+============================================================
+6. MONTH 2 GOALS (WEEKS 5–8)
+============================================================
+
+GOAL 1: Auth and Validation Tests
+  - Test Ojasvi's auth module: token store, retrieve, refresh, expiry
+  - Test Lakshay Bharti's schema validation: valid, invalid, edge cases
+  - Test: expired token → refresh → request succeeds
+  - Test: invalid token → 401
+  - Test: missing required schema field → 400 with field name
+  - Test: wrong type → 400 with type name
+  - Integration test: auth + validation + routing all work together
+
+GOAL 2: Benchmark Suite
+  - Latency benchmark: 1000 requests, measure p50/p95/p99
+  - Throughput benchmark: concurrent requests, measure req/sec
+  - Memory benchmark: measure RSS before/after load test
+  - Backend health check benchmark: time to detect down backend
+  - Results saved as JSON for trending over time
+  - Script: run-benchmarks.sh that executes all benchmarks
+
+GOAL 3: Resilience Tests
+  - Test Kapil's retry logic: 3 attempts, backoff timing
+  - Test Kapil's circuit breaker: opens after 3 failures, closes after 30s
+  - Test Kapil's dead-letter queue: failed requests appear in audit memory
+  - Integration test: retry + circuit breaker + dead-letter all together
+
+DELIVERABLES (end of Month 2):
+  - tests/test_auth_integration.py — 6+ tests
+  - tests/test_validation_integration.py — 6+ tests
+  - tests/test_resilience_integration.py — 5+ tests
+  - benchmarks/benchmark_latency.py
+  - benchmarks/benchmark_throughput.py
+  - benchmarks/run-benchmarks.sh
+  - benchmarks/results/ — JSON output from benchmark runs
+  - docs/testing/benchmark-guide.md
+
+============================================================
+7. MONTH 3 GOALS (WEEKS 9–12)
+============================================================
+
+GOAL 1: Chaos Testing for Gateway
+  - Randomly kill the mock backend mid-request, verify gateway handles it
+  - Randomly add latency (1–5 seconds), verify gateway timeouts work
+  - Randomly return partial/broken responses, verify gateway surfaces errors
+  - Run chaos suite for 100 iterations, verify 0 crashes
+  - Gateway MUST survive all chaos scenarios without crashing
+
+GOAL 2: Regression Test Framework
+  - Template for bug reports: standardized format
+  - For every bug found: write minimal reproduction script
+  - For every bug fixed: write regression test that proves the fix
+  - Organize regression tests by component (gateway, auth, validation)
+  - Documentation: how to write a regression test
+
+GOAL 3: Full-Stack Integration Tests
+  - Test: LangGraph workflow → Gateway → Backend (Month 3, with Lakshay Bharti)
+  - Test: Gateway → Backend with OAuth (with Ojasvi)
+  - Test: Gateway health dashboard shows correct status (with Kapil)
+  - Test: Audit memory records all gateway events (with Kapil's DLQ)
+  - Goal: prove all subsystems work together
+
+DELIVERABLES (end of Month 3):
+  - tests/chaos/test_gateway_chaos.py — chaos scenarios
+  - tests/regression/ — per-bug regression tests
+  - tests/integration/test_full_stack.py — end-to-end tests
+  - docs/testing/chaos-guide.md
+  - docs/testing/regression-guide.md
+  - Report: full-stack test results summary
+
+============================================================
+8. 15 GITHUB ISSUES
+============================================================
+
+-- MONTH 1 --
+
+Issue 1: Build reusable mock backend server for testing
+  Description: Create a mock HTTP server that can be configured per test
+  to return success, error, timeout, or malformed responses. Used by all
+  gateway integration tests. Must be importable as a Python module and
+  usable as a pytest fixture.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - mock_backend.success() returns 200 with controlled body
+    - mock_backend.error() returns 500
+    - mock_backend.timeout(seconds=60) hangs longer than gateway timeout
+    - mock_backend.malformed() returns Content-Type: application/json
+      with invalid JSON body
+    - pytest fixture available: mock_backend
+    - README section on how to use
+
+Issue 2: Write gateway proxy integration tests
+  Description: Test the MCP Gateway core proxy end-to-end using the mock
+  backend. Test: successful round-trip, backend unreachable, invalid
+  JSON-RPC, unknown tool, health check.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - test_roundtrip_success: POST valid JSON-RPC → response matches mock
+    - test_backend_unreachable: mock down → 502
+    - test_invalid_jsonrpc: bad body → 400
+    - test_unknown_tool: unmapped tool → 404
+    - test_health: GET /health → 200
+    - All tests pass: pytest
+
+Issue 3: Write error handling tests
+  Description: Test every error path in the gateway. Backend timeout,
+  backend returns non-JSON, backend returns 500, request body not JSON,
+  missing required JSON-RPC fields.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - test_backend_timeout: mock hangs → 502 with timeout detail
+    - test_backend_html_response: mock returns HTML → 502
+    - test_backend_500: mock returns 500 → gateway returns 502
+    - test_request_not_json: body is plain text → 400
+    - test_missing_method: no method field → 400
+    - test_missing_id: no id field → 400
+
+Issue 4: Write config loader tests
+  Description: Test gateway/config.py. Valid config, missing file,
+  missing required field, invalid timeout value, duplicate backend names.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - test_valid_config_loads: 3 backends loaded correctly
+    - test_missing_config_file: FileNotFoundError with path
+    - test_missing_required_field: ValueError with field name
+    - test_invalid_timeout: ValueError (negative timeout)
+    - test_duplicate_backend_names: ValueError
+
+Issue 5: Run and report on existing workflow engine tests
+  Description: Execute all 6 reliability tests from phase0/. Execute
+  production readiness suite and stress tests. Report results. If any
+  test fails, file a bug with reproduction steps. Verify the foundation
+  is solid.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - All 6 reliability tests pass (or bugs filed for failures)
+    - Chaos monkey test passes (30 steps, random SIGKILL)
+    - Stress tests pass
+    - Report saved: docs/testing/workflow-engine-test-report.md
+    - Report includes: test name, result (PASS/FAIL), notes
+
+Issue 6: Create shared test fixtures (conftest.py)
+  Description: Set up pytest conftest.py with shared fixtures: mock
+  backend server, gateway test client, sample config, auth tokens.
+  All team members import these fixtures instead of duplicating setup.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - fixture 'gateway_client' returns httpx test client
+    - fixture 'mock_backend' starts and stops mock server
+    - fixture 'sample_config' returns a BackendConfig for testing
+    - fixture 'auth_token' returns a fake-but-valid token
+    - All fixtures documented in conftest.py docstrings
+
+-- MONTH 2 --
+
+Issue 7: Write OAuth integration tests
+  Description: Test Ojasvi's auth module end-to-end. Mock OAuth server
+  that issues tokens, rejects bad tokens, and simulates expiry.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - test_token_store_and_retrieve: store → retrieve matches
+    - test_token_refresh_cycle: expired → refresh → new token used
+    - test_token_refresh_fails: refresh endpoint 500 → auth error
+    - test_authorization_header: Bearer token in forwarded request
+    - test_multiple_backends: each has own token
+
+Issue 8: Write schema validation integration tests
+  Description: Test Lakshay Bharti's validation module. Valid requests
+  pass through. Invalid requests return 400 with field-level errors.
+  Edge cases: empty params, null params, extra fields, nested objects.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - test_valid_passes: schema-compliant request passes through
+    - test_missing_required: 400 + field name + 'required'
+    - test_wrong_type: 400 + field name + expected type
+    - test_extra_fields: behavior depends on additionalProperties
+    - test_nested_validation: nested object validated
+    - test_no_schema: passes through with warning log
+
+Issue 9: Write resilience integration tests
+  Description: Test Kapil's retry, circuit breaker, and dead-letter
+  queue. Backend fails, gateway retries, circuit breaker opens, failed
+  requests land in DLQ.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - test_retry_succeeds: fails twice, succeeds on 3rd attempt
+    - test_retry_exhausted: fails 3 times → returns error
+    - test_circuit_breaker_opens: 3 failures → OPEN
+    - test_circuit_breaker_half_open: 30s → probe → success → CLOSED
+    - test_dead_letter_queue: failed request appears in audit memory
+
+Issue 10: Create latency benchmark
+  Description: Measure gateway proxy latency. 1000 sequential requests
+  to mock backend. Calculate p50, p95, p99. Run against different
+  backend response sizes (empty, 1KB, 100KB).
+  Difficulty: Medium
+  Acceptance Criteria:
+    - Benchmark script: benchmarks/benchmark_latency.py
+    - Measures p50, p95, p99, min, max, mean
+    - Runs against 3 response sizes
+    - Output: JSON file in benchmarks/results/
+    - README explains how to run and interpret
+
+Issue 11: Create throughput benchmark
+  Description: Measure gateway throughput under concurrent load. 10, 50,
+  100 concurrent requests. Measure requests/second completed. Track
+  failures and timeouts.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - Benchmark script: benchmarks/benchmark_throughput.py
+    - Tests at 3 concurrency levels
+    - Reports: req/sec, failures, timeouts per level
+    - Output: JSON file in benchmarks/results/
+    - Does not crash the gateway
+
+-- MONTH 3 --
+
+Issue 12: Build gateway chaos test suite
+  Description: Randomly kill mock backend, add latency, return broken
+  responses. Run 100 iterations. Gateway must not crash. All errors
+  must be handled gracefully (correct status codes, no tracebacks).
+  Difficulty: Hard
+  Acceptance Criteria:
+    - Chaos scenarios: kill_backend, add_latency, broken_response
+    - 100 iterations → 0 crashes
+    - All errors return correct HTTP status codes
+    - Script: tests/chaos/test_gateway_chaos.py
+    - Results logged to file
+
+Issue 13: Create regression test framework
+  Description: Standardized format for bug reports and regression tests.
+  Template for reproduction scripts. Tests organized by component.
+  Documentation for team on how to add regression tests.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - BUG_REPORT_TEMPLATE.md in docs/testing/
+    - REGRESSION_TEST_TEMPLATE.py in tests/regression/
+    - At least 2 regression tests written (from real bugs found)
+    - docs/testing/regression-guide.md explains the process
+
+Issue 14: Write full-stack integration tests
+  Description: Test the entire stack together: Gateway + Auth + Validation
+  + Resilience + Real Backend (mock). Verify all subsystems work as one.
+  Difficulty: Hard
+  Acceptance Criteria:
+    - test_auth_then_validate_then_route: full pipeline works
+    - test_retry_with_auth: retry refreshes token if expired
+    - test_circuit_breaker_with_validation: invalid requests don't
+      count toward circuit breaker failures
+    - test_dashboard_data: dashboard endpoint reflects real backend health
+    - All tests pass
+
+Issue 15: Create memory benchmark for gateway
+  Description: Measure memory usage of gateway server at startup, under
+  steady load (100 requests), and after load subsides. Check for memory
+  leaks (steady growth over time).
+  Difficulty: Medium
+  Acceptance Criteria:
+    - Benchmark script: benchmarks/benchmark_memory.py
+    - Measures: startup RSS, steady-state RSS, peak RSS under load
+    - Runs for 5 minutes, samples every 10 seconds
+    - No monotonic memory growth (memory leak)
+    - Output: JSON + chart (text-based) in benchmarks/results/
+
+============================================================
+9. READING RESOURCES
+============================================================
+
+ESSENTIAL (Month 1):
+
+1. pytest Documentation — Getting Started
+   https://docs.pytest.org/en/stable/getting-started.html
+   Focus: test functions, assert, fixtures, conftest.py
+
+2. pytest Fixtures Documentation
+   https://docs.pytest.org/en/stable/fixture.html
+   Focus: scope, yield, autouse, parametrize
+
+3. HTTP Testing with httpx and FastAPI
+   https://fastapi.tiangolo.com/tutorial/testing/
+   Focus: TestClient, async tests, dependency overrides
+
+4. Python unittest.mock
+   https://docs.python.org/3/library/unittest.mock.html
+   Focus: Mock, MagicMock, patch, return_value, side_effect
+
+RECOMMENDED (Month 2):
+
+5. Locust — Load Testing Tool
+   https://docs.locust.io/en/stable/
+   Focus: writing a locustfile, running headless, results interpretation
+
+6. Python statistics module
+   https://docs.python.org/3/library/statistics.html
+   Focus: mean, median, stdev, quantiles
+
+7. memory_profiler
+   https://pypi.org/project/memory-profiler/
+   Focus: @profile decorator, line-by-line memory usage
+
+RECOMMENDED (Month 3):
+
+8. Chaos Engineering — Principles of Chaos Engineering
+   https://principlesofchaos.org/
+   Focus: Build a hypothesis, vary real-world events, run in production,
+   automate, minimize blast radius
+
+9. Netflix Simian Army
+   https://github.com/Netflix/SimianArmy
+   Read the README. Understand Chaos Monkey's philosophy.
+
+10. git bisect Documentation
+    https://git-scm.com/docs/git-bisect
+    Focus: start, good, bad, run (automated bisect with test script)
+
+============================================================
+10. SUCCESS CRITERIA
+============================================================
+
+END OF MONTH 1:
+  - You can: write a pytest test with fixtures from scratch
+  - You can: mock an HTTP server and control its responses
+  - You can: explain what integration test vs unit test means
+  - Code: mock backend works, 15+ gateway tests pass, test report filed
+
+END OF MONTH 2:
+  - You can: benchmark an HTTP API and interpret p50/p95/p99
+  - You can: test OAuth token lifecycle (store → refresh → expire)
+  - You can: test a circuit breaker state machine
+  - Code: benchmarks run, auth tests pass, resilience tests pass
+
+END OF MONTH 3:
+  - You can: design a chaos test that finds real bugs
+  - You can: write a reproduction script for any bug
+  - You can: verify a full-stack integration (3+ subsystems)
+  - Code: chaos suite passes, regression framework exists, full-stack tests pass
+
+============================================================
+11. HOW TO GET HELP
+============================================================
+
+1. Read first:
+   - docs/testing/ (your own documentation)
+   - The test files in implementation/phase0/ (see how the existing
+     workflow engine tests are structured — they're good examples)
+
+2. Ask Lakshay if:
+   - You're blocked for more than 2 hours
+   - You don't know how to mock a specific behavior
+   - CI is failing for an unclear reason
+
+3. Ask other team members:
+   - Lakshay Bharti: how the gateway router works internally
+   - Ojasvi: how auth tokens flow, what token expiry looks like
+   - Kapil: how retry/circuit breaker state machine works internally
+
+4. When stuck, always bring:
+   - What you're testing (which component, which behavior)
+   - What you tried (test code you wrote)
+   - What error or unexpected behavior you saw
+
+============================================================
+12. FILES AND FOLDERS YOU OWN
+============================================================
+
+implementation/phase1/mcp-gateway/tests/
+  ├── __init__.py
+  ├── conftest.py              — Shared fixtures (mock_backend, gateway_client)
+  ├── mock_backend.py          — Reusable mock HTTP server
+  ├── test_proxy_integration.py
+  ├── test_error_handling.py
+  ├── test_config_loader.py
+  ├── test_auth_integration.py
+  ├── test_validation_integration.py
+  ├── test_resilience_integration.py
+  ├── test_full_stack.py
+  ├── chaos/
+  │   └── test_gateway_chaos.py
+  └── regression/
+      ├── REGRESSION_TEST_TEMPLATE.py
+      └── test_bug_NNN.py      — One file per fixed bug
+
+implementation/phase1/benchmarks/
+  ├── benchmark_latency.py
+  ├── benchmark_throughput.py
+  ├── benchmark_memory.py
+  ├── run-benchmarks.sh
+  └── results/
+      └── *.json
+
+docs/testing/
+  ├── README.md                — How to run tests, mock backend usage
+  ├── benchmark-guide.md
+  ├── chaos-guide.md
+  ├── regression-guide.md
+  ├── BUG_REPORT_TEMPLATE.md
+  └── workflow-engine-test-report.md
+
+============================================================
+END OF JATIN GARG ROLE ASSIGNMENT
+============================================================
+If you have questions about any task in this document, ask Lakshay (Founder)
+in the team channel before starting. Do not guess. Ship working tests weekly.

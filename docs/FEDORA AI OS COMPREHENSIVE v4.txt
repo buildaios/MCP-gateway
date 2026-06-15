@@ -1,0 +1,392 @@
+================================================================================
+                        FEDORA AI OS — COMPREHENSIVE ARCHITECTURE v4.0
+              A Governed Cognitive Orchestration Layer for Fedora Linux
+================================================================================
+
+ABSTRACT
+--------
+Fedora AI OS is a security‑first, AI‑native orchestration layer above Fedora
+Linux. It augments Fedora/GNOME with a federation of specialized, SELinux‑confined
+AI agents that coordinate tasks, memory, desktop interaction, and system
+management through auditable interfaces. The architecture combines proven
+open‑source components – Goose, LangGraph, AIOS, OpenAdapt, Mem0, RamaLama, MCP,
+Podman, SELinux, OpenTelemetry – into a unified control plane that is bounded,
+inspectable, auditable, and recoverable.
+
+It is NOT a chatbot, a shell wrapper, a voice assistant, or a custom distribution.
+It IS a cognitive orchestration layer built with Fedora’s own security primitives.
+
+CORE PRINCIPLES
+---------------
+Governed Autonomy   – AI acts within enforced, auditable boundaries
+Security First      – Isolation before intelligence, always
+Observability       – Every action traced, every workflow replayable
+Recoverability      – All failures reversible or compensatable
+Modularity          – Components independently replaceable
+Upstream Alignment  – Built with Fedora and GNOME ecosystems, not around them
+OS‑Native Tooling   – Direct DBus/Unix sockets for low latency; MCP Gateway for external tools
+
+ARCHITECTURE OVERVIEW (7 LAYERS)
+--------------------------------
+L7  – User Interface Layer
+L6  – AI Control Plane
+L5  – Workflow Orchestration
+L4  – Agent Kernel
+L3  – Specialist Agents
+L2  – Runtime Layer (contains MCP Gateway, event bus, databases, eBPF)
+L1  – Fedora Linux Execution Layer (unmodified)
+
+All inter‑layer communication uses typed Protobuf/JSON Schema contracts,
+enforced in CI. The MCP Gateway is a cross‑cutting service that all external
+tool calls must traverse.
+
+────────────────────────────────────────────────────────────────────────
+LAYER 1 – FEDORA LINUX EXECUTION LAYER (L1)
+────────────────────────────────────────────────────────────────────────
+Components:
+  - Fedora Linux (unmodified)
+  - GNOME + Wayland
+  - systemd
+  - SELinux (enforcing)
+  - Linux kernel + eBPF subsystem
+No kernel patches. No GNOME forks. No SELinux bypasses. The architecture
+uses only existing stable interfaces: DBus, AT‑SPI2, Portal APIs, systemd.
+
+────────────────────────────────────────────────────────────────────────
+LAYER 2 – RUNTIME LAYER (L2)
+────────────────────────────────────────────────────────────────────────
+Components:
+  - Podman rootless containers (per‑agent isolation, Quadlet‑defined)
+  - Redis / NATS event bus
+  - Vector databases (ChromaDB, Qdrant) for semantic memory
+  - Graph databases (FalkorDB, Neo4j) for entity relationships
+  - MCP servers (each in its own SELinux‑labeled container)
+  - MCP Gateway Agent (centralised tool routing, auth, retry, validation)
+  - OpenTelemetry collector (traces, metrics, logs)
+  - Grafana dashboards
+  - eBPF network policy enforcement (Cilium, V2+)
+
+────────────────────────────────────────────────────────────────────────
+LAYER 3 – SPECIALIST AGENTS
+────────────────────────────────────────────────────────────────────────
+A. CEO AGENT
+   Role: Top‑level orchestrator
+   Responsibilities: goal interpretation, task decomposition, delegation,
+                    policy management, approval aggregation
+
+B. STANDBY ORCHESTRATOR
+   Role: Resilience failover
+   Monitors CEO via heartbeat; on failure assumes coordination of in‑flight
+   workflows, resumes from LangGraph checkpoints. Reflex Runtime continues
+   unaffected.
+
+C. WORKFLOW AGENT
+   Role: Execution and reliability
+   LangGraph graph execution, retry/rollback, checkpointing, DAG export.
+
+D. DESKTOP AGENT
+   Technologies: Agent S3, AT‑SPI2, GNOME APIs, vision fallback (metered)
+   Interaction priority: Portal APIs → DBus → GSettings → AT‑SPI2 →
+                         Vision fallback → Synthetic input (TRUST_3 only)
+   Used for multi‑app workflows, headless research, government portals,
+   accessibility assistance, not for trivial single clicks.
+
+E. RUNTIME EXECUTOR
+   Technology: Goose (packaged for Fedora 43+)
+   Responsibilities: shell/code execution, browser automation, file ops,
+                    terminal workflows. Runs in Podman with SELinux.
+
+F. SEMANTIC FILE AGENT
+   Technology: AIOS‑LSFS, vector store, graph memory, metadata filters
+   Finds files by meaning (“config related to my Python project”),
+   cross‑directory awareness, temporal+contextual search. Not just grep.
+
+G. MEMORY AGENT
+   Technologies: Mem0, A‑MEM, FalkorDB/Neo4j
+   Memory Tiers:
+     Personal    – preferences, habits (read/write: CEO, Memory Agent)
+     Operational – active task state, session context (Redis, TTL‑managed)
+     Graph       – entity relationships, project structure
+     Audit       – immutable, append‑only action log
+   Routing policy:
+     security_event → Audit; relationship → Graph;
+     recurrence ≥3 → promote to Personal; active_session → Operational.
+
+H. SECURITY AGENT
+   Rule‑based (not LLM). Trust scoring, capability token issuance/enforcement,
+   runtime revocation (triggers: repeated violations, anomalous syscalls,
+   trust score <20). Escalation engine. All privileged actions gate here.
+
+I. DEMONSTRATION LEARNING AGENT
+   Technology: OpenAdapt (V3). Records user workflows, generalises via LMMs,
+   replays on demand. Feeds learned habits into Personal Memory.
+
+J. CONFLICT RESOLUTION MODULE
+   Priority‑queue arbitration for resource contention (filesystem locks,
+   DBus, display, memory write access). Resolves agent conflicts.
+
+K. MCP GATEWAY AGENT (NEW – Core Infrastructure)
+   Centralised gateway for ALL external MCP tool calls.
+   Functions:
+     - Reverse proxy: external servers never directly exposed
+     - OAuth token management (store, refresh, inject)
+     - JSON Schema validation on every request/response
+     - Circuit breaker, dead‑letter queue, exponential backoff retry
+     - Health‑check dashboard (continuous monitoring of all MCP servers)
+     - Capability token injection into forwarded requests
+     - Audit logging: every call logged with trace ID, latency, outcome
+   Prevents: tool desync, retry spirals, stale endpoints, auth failures.
+
+────────────────────────────────────────────────────────────────────────
+LAYER 4 – AGENT KERNEL (L4)
+────────────────────────────────────────────────────────────────────────
+Technologies: AIOS + Cerebrum SDK
+Functions:
+  - LLM request scheduling with priority queuing
+  - Capability routing to appropriate agents
+  - Memory tier routing with access control enforcement
+  - Context window management (snapshot/restore)
+  - Agent lifecycle: CREATED → WARM → ACTIVE → IDLE → SUSPENDED →
+                     HIBERNATED → TERMINATED (all transitions logged)
+  - OpenTelemetry trace propagation
+  - Typed contract validation on all inter‑agent messages
+
+────────────────────────────────────────────────────────────────────────
+LAYER 5 – WORKFLOW ORCHESTRATION (L5)
+────────────────────────────────────────────────────────────────────────
+Technology: LangGraph
+  - Durable workflow graphs with named checkpoints
+  - Automatic retries with configurable backoff
+  - Rollback to any checkpoint on failure
+  - Parallel branch execution with join synchronisation
+  - Crash recovery from persistent store
+  - Deterministic replay for debugging/audit
+  - Execution DAG export for UI visualisation
+  - Evaluation harness (built in V1): telemetry on every step
+
+────────────────────────────────────────────────────────────────────────
+LAYER 6 – AI CONTROL PLANE (L6)
+────────────────────────────────────────────────────────────────────────
+CEO Agent + Standby Orchestrator as described above.
+Resource Contention Arbitration via Conflict Resolution Module.
+Orchestration model: V1‑V2 single CEO; V3 Peer Consensus.
+
+────────────────────────────────────────────────────────────────────────
+LAYER 7 – USER INTERFACE (L7)
+────────────────────────────────────────────────────────────────────────
+GNOME Shell extension (V2+). AI overlay panel, workspace switcher,
+progressive disclosure permission dialogs (modal only for TRUST_3),
+notification tray with inline undo for TRUST_1/TRUST_2 actions.
+
+Workspace Transition Protocol:
+  AI→Human: checkpoint all workflows, queue pending actions, user reviews
+  summary (approve/defer/cancel), AI workspace releases resources.
+
+────────────────────────────────────────────────────────────────────────
+SECURITY ARCHITECTURE (DEFENCE IN DEPTH)
+────────────────────────────────────────────────────────────────────────
+ 1. SELinux domain confinement per agent (mcp_file_reader_t, etc.)
+ 2. Podman rootless containers with dropped capabilities
+ 3. seccomp filtering per container
+ 4. Namespace isolation (user, network, mount, PID)
+ 5. Capability tokens enforced at Agent Kernel
+ 6. Trust level enforcement at action boundary
+ 7. MCP Gateway auth + schema validation + reverse proxy
+ 8. eBPF network policy isolation (V2)
+ 9. Rollback systems for all mutating operations
+10. Immutable audit logs (append‑only, tamper‑evident)
+11. Runtime capability revocation on anomaly detection
+
+SELINUX IMPLEMENTATION STRATEGY
+-------------------------------
+Phase 0 (V1): systemd sandboxing + seccomp + capability dropping
+Phase 1 (V1): udica‑generated policies, permissive mode + audit logging
+Phase 2 (V2): audit2allow tightening, graduated enforcing mode
+Phase 3 (V2/V3): submission to Fedora SELinux SIG; policy in Fedora repos
+
+Agents NEVER access files directly – they delegate to scoped MCP tool servers
+each with minimal label. The agent cannot spawn processes outside its container.
+This is stronger than today’s status quo where an AI coding assistant has all
+of the user’s permissions.
+
+TRUST LEVELS & ESCALATION
+--------------------------
+TRUST_0 – Silent, read‑only (read files, query system state)
+TRUST_1 – Notification tray + inline undo (create file in home, open app)
+TRUST_2 – Explicit confirm/deny (modify system setting, send email)
+TRUST_3 – Modal dialog with diff preview (install software, edit security config)
+
+Escalation triggers:
+ - Scope expansion beyond declared workflow → +1 level
+ - Unexpected network call from sandbox → TRUST_3
+ - Trust score degradation detected → +1 level
+ - User dismissal of same action type ≥3 times → flag for review
+
+Runtime Revocation:
+ - 3 policy violations / 60 seconds
+ - Anomalous syscall patterns (eBPF)
+ - Trust score below configured threshold
+ Revoked agents are suspended and workflows checkpointed.
+
+────────────────────────────────────────────────────────────────────────
+WORKSPACE MODEL
+────────────────────────────────────────────────────────────────────────
+Human Workspace – light assistance, low interruption budget, background agents
+AI Workspace – full agent autonomy, sandboxed execution, changes merged only
+               after user review (like a git diff for the whole computer)
+Two modes:
+  🟢 No‑Interruption: agent operates within pre‑approved scope
+  🟡 Interruption: agent pauses before every significant change
+
+────────────────────────────────────────────────────────────────────────
+LLM ROUTING (HYBRID LOCAL/CLOUD)
+────────────────────────────────────────────────────────────────────────
+Trivial      → Reflex Runtime (no LLM, direct DBus)       <100 ms
+Simple       → local 1‑3B quantised (8 GB RAM, CPU)        <1 s
+Medium       → local 7B Q4_K_M (16 GB RAM, CPU)            2–10 s
+Complex      → local 13B+ or cloud API (user API key)      varies
+
+Sensitive data stays local by default. Model router selects cheapest
+backend matching task complexity and available hardware.
+
+HARDWARE REALITIES (QUANTISED MODELS)
+-------------------------------------
+Minimum:     16 GB RAM, modern x86‑64 CPU (runs 7B Q4)
+Recommended: 32 GB RAM, discrete GPU for vision fallback
+All local inference uses GGUF quantisation via Ollama/RamaLama.
+GPU‑metered vision fallback (capped 30 % utilisation).
+No 8 GB VRAM requirement – quantised models run on system RAM.
+
+────────────────────────────────────────────────────────────────────────
+WAYLAND COMPATIBILITY
+────────────────────────────────────────────────────────────────────────
+Priority stack (Desktop Agent):
+  Portal APIs → DBus → GSettings → AT‑SPI2 → Vision fallback → Synthetic input
+Synthetic input always requires TRUST_3 + explicit approval.
+
+────────────────────────────────────────────────────────────────────────
+REFLEX RUNTIME
+────────────────────────────────────────────────────────────────────────
+Separate systemd service; handles mute, volume, brightness, workspace switch,
+media controls, wake‑word. Direct DBus, no LLM, sub‑100 ms, survives CEO crash.
+
+────────────────────────────────────────────────────────────────────────
+HABIT INFERENCE MODULE (V2)
+────────────────────────────────────────────────────────────────────────
+Periodic offline analyser (systemd timer) scans Personal+Operational memory
+for recurring patterns. Outputs habit candidates → user confirms (TRUST_1
+notification). Separated from Memory Agent to avoid monolithic design.
+
+────────────────────────────────────────────────────────────────────────
+MCP GATEWAY BUILD PLAN (4‑6 weeks, standalone deliverable)
+────────────────────────────────────────────────────────────────────────
+Week 1‑2: core proxy – accept MCP, forward, return (no auth)
+Week 3:   OAuth token storage, refresh, injection
+Week 4:   JSON Schema validation, health‑check pings
+Week 5:   circuit breaker, dead‑letter queue, exponential backoff
+Week 6:   Audit Memory integration, Grafana dashboard
+
+Components: mcp Python SDK, oauthlib, GNOME Keyring/Secret Service,
+            jsonschema, httpx, SQLite
+
+────────────────────────────────────────────────────────────────────────
+OBSERVABILITY (MANDATORY FROM V1)
+────────────────────────────────────────────────────────────────────────
+- OpenTelemetry SDK in every agent
+- Trace context propagated across all inter‑agent messages
+- Trace IDs on every LLM call, tool invocation, approval request
+- Structured JSON logs correlated with trace IDs
+- Grafana dashboards for live monitoring
+- Deterministic workflow replay from any checkpoint
+
+────────────────────────────────────────────────────────────────────────
+BENCHMARK SUITE (V1)
+────────────────────────────────────────────────────────────────────────
+- AT‑SPI success rate (target ≥85 % before V2)
+- Vision fallback frequency (<15 % of Desktop Agent interactions)
+- Vision fallback latency (<2 s median)
+- Workflow completion rate (≥90 %)
+- Rollback success rate (100 %)
+- Checkpoint recovery time (<5 s)
+- Interruption dismissal rate (<20 % Balanced mode)
+- Memory retrieval latency (<100 ms Personal/Operational)
+- MCP Gateway tool‑call success rate (>99 %)
+
+────────────────────────────────────────────────────────────────────────
+FAILURE CONTAINMENT MATRIX
+────────────────────────────────────────────────────────────────────────
+Vision fail           → AT‑SPI fallback (automatic, logged)
+AT‑SPI fail           → Vision fallback (GPU‑metered, logged)
+CEO crash             → Standby Orchestrator, Reflex Runtime survives,
+                        workflows resume from checkpoint
+Workflow Agent crash  → LangGraph checkpoint recovery, retry
+Graph DB failure      → semantic search disabled, Operational/Personal continue
+Cloud LLM outage      → local LLM fallback, user notified
+Memory tier failure   → isolate affected tier, others continue
+Security Agent fail   → block all TRUST_1+ actions, TRUST_0 continues
+eBPF policy failure   → network access blocked for agent, fail‑closed
+MCP Gateway failure   → Tier‑1/2 operations unaffected, external calls queued
+
+────────────────────────────────────────────────────────────────────────
+DEVELOPMENT ROADMAP
+────────────────────────────────────────────────────────────────────────
+V1 – FOUNDATION (8–10 weeks solo, 6–8 months team)
+  - Goose runtime in rootless Podman (Quadlet)
+  - Reflex Runtime systemd service
+  - MCP Gateway (basic proxy)
+  - SQLite operational memory
+  - LangGraph checkpointing (SQLite)
+  - DBus bridge (Python ↔ Goose)
+  - TRUST_3 modal approval, TRUST_1 notification tray
+  - OpenTelemetry on all agents
+  - Grafana basic dashboards
+  - AT‑SPI benchmark baseline (no automation)
+  - Typed contracts (Protobuf)
+  Go/No‑Go: workflow completion ≥90%, CEO failover <10 s, traces visible,
+            MCP Gateway >99% routing success, Reflex <100 ms
+  Excluded: GNOME extension, semantic memory, vision fallback, eBPF, multi‑agent
+
+V2 – INTELLIGENCE EXPANSION (months 9–18)
+  - Semantic memory (Mem0 + vector DB), graph memory
+  - GNOME Shell extension + AI overlay
+  - Adaptive interruption learning (contextual bandit)
+  - Semantic filesystem agent
+  - Vision fallback integration
+  - eBPF network policy (Cilium)
+  - SELinux enforcing mode per agent
+  - Plugin API v1.0
+  - Habit Inference Module
+
+V3 – ADVANCED COGNITION (months 19–30)
+  - OpenAdapt demonstration learning
+  - Shadow Execution Sandboxes (speculative execution, eBPF tracing)
+  - Peer Consensus Orchestration
+  - Cross‑device orchestration
+  - Plugin registry and community ecosystem
+
+────────────────────────────────────────────────────────────────────────
+COMMUNITY INTEGRATION PATHWAY
+────────────────────────────────────────────────────────────────────────
+1. Join Fedora AI/ML SIG Matrix room (#ai:fedoraproject.org)
+2. Build MCP Gateway as first deliverable – solves immediate SIG pain point
+3. Submit to Fedora Innovation Lifecycle Sandbox stage (trademark use, metrics)
+4. Demonstrate V1 prototype → Sandbox Review
+5. Curation → FESCo, Infrastructure, Mindshare alignment
+6. Integration → formal Change Proposal
+
+────────────────────────────────────────────────────────────────────────
+RISK ASSESSMENT
+────────────────────────────────────────────────────────────────────────
+Low:      Goose+MCP integration, deterministic replay
+Medium:   GNOME extension, LLM routing, interruption learning, Gateway OAuth
+High:     SELinux policy authoring, eBPF policy, upstream collaboration
+Very High: Reliable AT‑SPI across apps, multi‑agent debugging at scale
+
+────────────────────────────────────────────────────────────────────────
+LICENSING
+────────────────────────────────────────────────────────────────────────
+Core system: GPL‑2.0 | SDK/Plugin API: LGPL‑2.1 | Documentation: CC BY‑SA 4.0
+
+================================================================================
+                              END OF COMPREHENSIVE ARCHITECTURE v4.0
+================================================================================

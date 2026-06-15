@@ -1,0 +1,368 @@
+ I now have comprehensive research. Here's the full analysis.                                                                                                        
+     ARCHITECTURAL REVIEW: AgentGateway vs Fedora AI OS MCP Gateway                                                                                                      
+     1. What Exactly Is AgentGateway?                                                                                                                                    
+                                                                                                                                                                         
+     AgentGateway is a high-performance Rust proxy purpose-built for AI-native protocols (MCP and A2A), hosted under the Linux Foundation. It is NOT a lightweight       
+     sidecar — it's a full HTTP/gRPC data plane comparable in scope to Envoy, but specialized for agent traffic.                                                         
+                                                                                                                                                                         
+     Architecture:                                                                                                                                                       
+     - Rust proxy core (crates/agentgateway/) — handles all request processing                                                                                           
+     - Go Kubernetes controller (controller/) — for K8s-native deployment with Gateway API CRDs                                                                          
+     - Two deployment modes: Standalone binary (local/VM) and Kubernetes (with XDS control plane)                                                                        
+     - Configuration: Static (env vars), Local (YAML file + file watch), XDS (remote control plane)                                                                      
+                                                                                                                                                                         
+     Internal Components:                                                                                                                                                
+     - mcp/ — MCP session management (handler, router, session, auth, rbac, upstream clients)                                                                            
+     - llm/ — LLM provider routing (OpenAI, Anthropic, Gemini, Bedrock, Azure, Copilot, custom)                                                                          
+     - http/ — Full HTTP proxy with auth (JWT, API keys, OAuth, AWS SigV4, GCP, Azure), rate limiting, buffering, CORS, compression                                      
+     - cel/ — Common Expression Language engine for dynamic policy evaluation (authorization, logging, metrics, header transformation)                                   
+     - a2a/ — Agent-to-Agent protocol support                                                                                                                            
+                                                                                                                                                                         
+     Request Flow (MCP):                                                                                                                                                 
+                                                                                                                                                                         
+     MCP Client → GET/POST → Accept/Content-Type validation → Session resolution →                                                                                       
+       JWT/OAuth auth → CEL RBAC check → Route to upstream(s) →                                                                                                          
+       Tool multiplexing (merge multiple servers' tool lists) → Response rewriting → Client                                                                              
+                                                                                                                                                                         
+     MCP Capabilities (from source code):                                                                                                                                
+     - Session state management with persistence (30 min idle TTL)                                                                                                       
+     - Multiplexing/federation: fan-out tool discovery across multiple MCP servers, merge results                                                                        
+     - Transport support: stdio, HTTP, SSE, Streamable HTTP — plus OpenAPI→MCP bridging                                                                                  
+     - CEL-based authorization at tool/resource/prompt level (e.g., jwt.sub == "admin" && mcp.tool.name == "add")                                                        
+     - Tool filtering: only authorized tools appear in list_tools responses                                                                                              
+     - Failure modes: FailClosed (any failure = session fails) and FailOpen (skip failed upstreams)                                                                      
+     - OAuth for MCP — auth resolver, JWKS URL support                                                                                                                   
+     2. Feature-by-Feature Comparison                                                                                                                                    
+                                                                                                                                                                         
+     Feature: MCP Federation                                                                                                                                             
+     AgentGateway Capability: Native: tool list merging, fan-out, protocol version negotiation, resource URI rewriting across multiple MCP servers                       
+     Effort to Build Ourselves: 3-4 months. The hardest part is merge semantics (what happens when two servers claim the same tool name? protocol version                
+       mismatch? different capabilities?)                                                                                                                                
+     Maturity: Production: battle-tested code with dedicated multiplexing handler                                                                                        
+     Risks: Adopting: our custom federation requirements may not map to their merge semantics                                                                            
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Authentication                                                                                                                                             
+     AgentGateway Capability: JWT (JWKS URL, OIDC discovery), API key (header), OAuth (MCP-specific + generic), AWS SigV4, GCP, Azure, GitHub Copilot token              
+     Effort to Build Ourselves: 2-3 weeks for basic. 2-3 months for production-grade with OIDC, token rotation, JWKS refresh                                             
+     Maturity: Production: multiple auth backends, tested with real IdPs                                                                                                 
+     Risks: None significant                                                                                                                                             
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Authorization                                                                                                                                              
+     AgentGateway Capability: CEL-based RBAC: per-tool, per-resource, per-prompt. Expression language evaluated at runtime with request context (JWT claims, tool        
+       name, arguments, result)                                                                                                                                          
+     Effort to Build Ourselves: 6-8 weeks. CEL engine + context builder + schema generation + policy DSL                                                                 
+     Maturity: Production: CEL integration is deep (custom fork of cel crate), auto-generated JSON schemas                                                               
+     Risks: CEL has learning curve. Our policies may need custom extensions beyond CEL                                                                                   
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Policy Enforcement                                                                                                                                         
+     AgentGateway Capability: TrafficPolicy (JWT, rate limit, retry, timeout), BackendPolicy (TLS, auth, circuit breaker, health check, load balancing),                 
+       MCP-specific authz policies                                                                                                                                       
+     Effort to Build Ourselves: 3-4 months to match. This is the core of a gateway                                                                                       
+     Maturity: Production: Gateway API-aligned policy model                                                                                                              
+     Risks: Policy model assumes Gateway API CRDs. Standalone mode uses YAML — still complex                                                                             
+     ────────────────────────────────────────                                                                                                                            
+     Feature: OpenTelemetry                                                                                                                                              
+     AgentGateway Capability: Native: traces, metrics (Prometheus), logs. CEL-defined attributes. Auto-instrumented                                                      
+     Effort to Build Ourselves: 2-3 weeks if we already have OTel SDK. But integration with CEL (dynamic attribute extraction) is harder                                 
+     Maturity: Production: Prometheus metrics on every operation, tracing throughout                                                                                     
+     Risks: None significant                                                                                                                                             
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Retry Handling                                                                                                                                             
+     AgentGateway Capability: Configurable per-route: attempts, per-try timeout, backoff, retry-on status codes                                                          
+     Effort to Build Ourselves: 1 week for basic. The plumbing for per-route config is the hard part                                                                     
+     Maturity: Production: built into the HTTP proxy layer                                                                                                               
+     Risks: None                                                                                                                                                         
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Circuit Breakers                                                                                                                                           
+     AgentGateway Capability: Yes: configurable thresholds, ejection, outlier detection                                                                                  
+     Effort to Build Ourselves: 2-3 weeks for basic. Hard part is making it configurable and observable                                                                  
+     Maturity: Production: inherited from the HTTP proxy layer                                                                                                           
+     Risks: None                                                                                                                                                         
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Health Checks                                                                                                                                              
+     AgentGateway Capability: Active health checks with configurable intervals, thresholds, paths. Passive via outlier detection                                         
+     Effort to Build Ourselves: 1 week for basic HTTP health. Active checks + integration with circuit breaker = 3 weeks                                                 
+     Maturity: Production                                                                                                                                                
+     Risks: None                                                                                                                                                         
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Rate Limiting                                                                                                                                              
+     AgentGateway Capability: Token bucket, per-route configurable. CEL-based key selection (rate limit by user, IP, tool, etc.)                                         
+     Effort to Build Ourselves: 3-4 weeks for basic. CEL-based key selection is another 2-3 weeks                                                                        
+     Maturity: Production                                                                                                                                                
+     Risks: None                                                                                                                                                         
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Load Balancing                                                                                                                                             
+     AgentGateway Capability: Round-robin, random, least-connections, ring hash, priority levels, locality-aware                                                         
+     Effort to Build Ourselves: 2-3 weeks for basic. Priority/failover is harder                                                                                         
+     Maturity: Production: multiple algorithms, priority-based failover                                                                                                  
+     Risks: None                                                                                                                                                         
+     ────────────────────────────────────────                                                                                                                            
+     Feature: LLM Routing                                                                                                                                                
+     AgentGateway Capability: Comprehensive: OpenAI API compatibility layer. Provider-specific translation for Anthropic, Gemini, Bedrock, Azure, Copilot.               
+       Model-level routing with priorities, spend controls, prompt enrichment                                                                                            
+     Effort to Build Ourselves: 6-8 months to get ALL providers + conversion + policy. This alone is a separate product                                                  
+     Maturity: Production: dedicated LLM module handles 7+ providers                                                                                                     
+     Risks: We don't need this in V1. MCP gateway != LLM gateway. But nice to have later                                                                                 
+     ────────────────────────────────────────                                                                                                                            
+     Feature: A2A Support                                                                                                                                                
+     AgentGateway Capability: Native: capability discovery, modality negotiation, task collaboration                                                                     
+     Effort to Build Ourselves: 4-6 months. A2A is a complex bidirectional protocol                                                                                      
+     Maturity: Alpha/beta: less mature than MCP side                                                                                                                     
+     Risks: We have no A2A requirement in V1                                                                                                                             
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Multi-tenant                                                                                                                                               
+     AgentGateway Capability: Full: per-tenant policies, per-tenant auth, CEL context includes tenant info, XDS designed for multi-tenant                                
+     Effort to Build Ourselves: Not needed in V1 (single user, single workstation)                                                                                       
+     Maturity: Production: built for multi-tenant from day 1                                                                                                             
+     Risks: Overkill for V1                                                                                                                                              
+     ────────────────────────────────────────                                                                                                                            
+     Feature: Observability                                                                                                                                              
+     AgentGateway Capability: Prometheus metrics, OpenTelemetry traces, structured logging. Built-in dashboard                                                           
+     Effort to Build Ourselves: 2-4 weeks to wire up OTel + basic dashboards                                                                                             
+     Maturity: Production                                                                                                                                                
+     Risks: None                                                                                                                                                         
+     3. Fedora AI OS Gateway Features That Become Unnecessary                                                                                                            
+                                                                                                                                                                         
+     If AgentGateway is adopted, these planned features become redundant (they come built-in):                                                                           
+                                                                                                                                                                         
+     - JSON-RPC routing — AgentGateway understands JSON-RPC natively                                                                                                     
+     - Tool discovery — merger/federation of tool lists across backends                                                                                                  
+     - Request validation — Content-Type, Accept headers, MCP protocol version checks                                                                                    
+     - Retry logic — configurable per-route                                                                                                                              
+     - Circuit breakers — built into the HTTP proxy layer                                                                                                                
+     - Health checks — active + passive                                                                                                                                  
+     - OpenTelemetry tracing — fully instrumented                                                                                                                        
+     - Rate limiting — token bucket with CEL key selection (if needed)                                                                                                   
+     - Authentication — JWT, OAuth, API keys                                                                                                                             
+     - Authorization — CEL-based RBAC                                                                                                                                    
+                                                                                                                                                                         
+     That is approximately 60-70% of the planned custom MCP Gateway scope.                                                                                               
+     4. Features That Still Need Custom-Building                                                                                                                         
+                                                                                                                                                                         
+     Even with AgentGateway, Fedora AI OS would still need:                                                                                                              
+                                                                                                                                                                         
+     1. LangGraph integration — AgentGateway is a proxy, not a workflow orchestrator. The bridge between LangGraph and the gateway (tool-calling from graphs, state      
+     management) is ours to build.                                                                                                                                       
+                                                                                                                                                                         
+     2. SELinux policy generation (udica) — Fedora-specific security integration. AgentGateway knows nothing about SELinux.                                              
+                                                                                                                                                                         
+     3. Trust enforcement (TRUST_0–3) — Our trust-level system is Fedora AI OS-specific. AgentGateway has RBAC but doesn't understand our trust model. We'd need to      
+     encode trust levels into JWT claims or CEL expressions.                                                                                                             
+                                                                                                                                                                         
+     4. Capability tokens — Our custom security primitive. Would need to map onto AgentGateway's auth layer (likely JWT claims).                                         
+                                                                                                                                                                         
+     5. CEO/Security agent logic — The agents themselves are Fedora AI OS code. AgentGateway routes their tool calls but doesn't implement agent reasoning.              
+                                                                                                                                                                         
+     6. Specialist agent tool definitions — Each agent's MCP server (Desktop, Runtime, Semantic) still needs to be built. AgentGateway proxies them, it doesn't          
+     create them.                                                                                                                                                        
+                                                                                                                                                                         
+     7. eBPF network policies — Orthogonal. AgentGateway is L7; eBPF is L3/L4.                                                                                           
+                                                                                                                                                                         
+     8. Dead-letter queue — AgentGateway has buffering and circuit breakers but not a persistent DLQ. If tool calls need to survive gateway restarts, that's on us.      
+                                                                                                                                                                         
+     9. Fedora package (RPM) — AgentGateway distributes as a standalone binary and Docker image. No RPM. Packaging for Fedora would be our responsibility.               
+                                                                                                                                                                         
+     10. Reflex Runtime (<100ms operations) — DBus/AT-SPI2/GNOME Shell operations that bypass the gateway entirely for performance.                                      
+     5. Fit Assessment: C — Underlying Infrastructure Component                                                                                                          
+                                                                                                                                                                         
+     AgentGateway would serve as the data plane infrastructure for Fedora AI OS, not a replacement for the entire MCP Gateway concept. You'd still build on top of       
+     it.                                                                                                                                                                 
+                                                                                                                                                                         
+     Why not A (complete replacement): The LangGraph integration, trust model, CEO agent orchestration, and Fedora-specific security rules are Fedora AI OS — not a      
+     proxy concern.                                                                                                                                                      
+                                                                                                                                                                         
+     Why not B (partial replacement): "Partial replacement" understates how much it delivers. It's more foundation than replacement.                                     
+                                                                                                                                                                         
+     Why C: AgentGateway provides the networking/data plane layer (routing, auth, observability, resilience). Fedora AI OS provides what happens above and around it     
+     — the orchestration logic, agent brains, Fedora security integration, and workflow engine.                                                                          
+                                                                                                                                                                         
+     Why not D: It's highly suitable for the MCP proxy component.                                                                                                        
+     6. Over-Engineered for V1? YES.                                                                                                                                     
+                                                                                                                                                                         
+     For a V1 system consisting of:                                                                                                                                      
+     - One Fedora workstation                                                                                                                                            
+     - One user                                                                                                                                                          
+     - Ollama (local)                                                                                                                                                    
+     - Several local MCP servers                                                                                                                                         
+     - LangGraph                                                                                                                                                         
+     - No Kubernetes                                                                                                                                                     
+                                                                                                                                                                         
+     AgentGateway is significantly over-engineered. Here's why:                                                                                                          
+                                                                                                                                                                         
+     - Rust binary complexity: ~25+ Rust crates, custom CEL fork, XDS protocol, Kubernetes controller. The build alone (Rust 1.90 minimum, ~1900 commits of code) is     
+     heavy for a single-workstation project.                                                                                                                             
+                                                                                                                                                                         
+     - Multi-tenancy, XDS, K8s controller: Zero relevance to a single-user workstation. Dead code in your deployment.                                                    
+                                                                                                                                                                         
+     - 7+ LLM providers, A2A, inference routing: You're using Ollama locally. The LLM routing features are irrelevant until you add cloud fallback.                      
+                                                                                                                                                                         
+     - CEL policy engine: Powerful but you could implement authorization with a 50-line Python function for V1. CEL is designed for "thousands of policies evaluated     
+     at wire speed" — you have maybe 5-10 rules.                                                                                                                         
+                                                                                                                                                                         
+     - Binary size + resource usage: Rust proxy with full HTTP/gRPC/mTLS/circuit breaker stack. Likely 50-100MB binary. Memory: probably 50-200MB at idle. For a         
+     desktop background service, that's heavy.                                                                                                                           
+                                                                                                                                                                         
+     However, "over-engineered for V1" doesn't mean "wrong choice." It means you're paying upfront complexity for future-proofing.                                       
+     7. If AgentGateway Is Adopted                                                                                                                                       
+                                                                                                                                                                         
+     Complexity DECREASES:                                                                                                                                               
+     - No need to write/maintain an HTTP proxy, JSON-RPC router, session manager, or auth layer                                                                          
+     - No need to implement circuit breakers, retries, rate limiting, health checks                                                                                      
+     - No need to build OpenTelemetry instrumentation from scratch                                                                                                       
+     - Security audit surface shrinks (battle-tested proxy vs custom code)                                                                                               
+                                                                                                                                                                         
+     Complexity INCREASES:                                                                                                                                               
+     - Learning AgentGateway's configuration model (local YAML config, CEL expressions, policy types)                                                                    
+     - Debugging: when something breaks, you're debugging a Rust binary you didn't write                                                                                 
+     - Configuration management: your YAML config is now AgentGateway-specific, not Python-native                                                                        
+     - Integration testing: need AgentGateway running to test any MCP workflow                                                                                           
+     - Build pipeline: You need the Rust toolchain just to compile AgentGateway (or you use pre-built binaries, adding supply chain concerns)                            
+                                                                                                                                                                         
+     New Dependencies:                                                                                                                                                   
+     - Rust toolchain (if building from source) or trust in pre-built binaries                                                                                           
+     - AgentGateway release cycle becomes your release dependency                                                                                                        
+     - Linux Foundation project governance (not a dependency, but worth noting: roadmap is not yours)                                                                    
+                                                                                                                                                                         
+     Operational Risks:                                                                                                                                                  
+     - Breaking changes: v1.2 → v1.3 migrates config format? YAML schema changes? You're tracking their changelog                                                        
+     - Bugs in a moving target: 22-minute-old commits. Active development means active instability                                                                       
+     - Documentation gaps: The standalone binary mode is documented but Kubernetes gets more attention                                                                   
+     - Single point of failure: Every tool call goes through one process. If it crashes, everything stops. (Same risk with custom gateway, but at least you can fix      
+     it immediately)                                                                                                                                                     
+     - Supply chain: Pre-built binary from GitHub releases. Who signed it? What's in it?                                                                                 
+     8. Three Options Compared                                                                                                                                           
+     Option A: Build MCP Gateway From Scratch (Python)                                                                                                                   
+                                                                                                                                                                         
+     Dimension: Development time                                                                                                                                         
+     Assessment: 3-6 months for core proxy, 6-12 for production features. Minimum 2-3 months for CRITICAL_PATH.md success condition (JSON-RPC routing + echo             
+       backend)                                                                                                                                                          
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Learning value                                                                                                                                           
+     Assessment: Maximum. You understand every line. Deep MCP protocol knowledge                                                                                         
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Long-term maintainability                                                                                                                                
+     Assessment: Highest for YOU. Python code you wrote. But you maintain everything                                                                                     
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Vendor lock-in                                                                                                                                           
+     Assessment: Zero                                                                                                                                                    
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Performance                                                                                                                                              
+     Assessment: Slowest option. Python async is fine for a single user, but 1000s of tool calls/second? No                                                              
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Security                                                                                                                                                 
+     Assessment: All bugs are your bugs. Python async proxy: subtle concurrency bugs possible                                                                            
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Scalability                                                                                                                                              
+     Assessment: Limited. Single process, single user design                                                                                                             
+     Option B: Use AgentGateway Directly                                                                                                                                 
+                                                                                                                                                                         
+     Dimension: Development time                                                                                                                                         
+     Assessment: 1-2 weeks to configure, 2-4 weeks for full integration. Drop-in, not build                                                                              
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Learning value                                                                                                                                           
+     Assessment: Low for MCP protocol internals. High for production proxy operations                                                                                    
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Long-term maintainability                                                                                                                                
+     Assessment: Depends on AgentGateway project health. Linux Foundation backing helps                                                                                  
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Vendor lock-in                                                                                                                                           
+     Assessment: Significant. Your config (YAML, CEL policies, route definitions) is AgentGateway-specific. Migration means rewriting all config                         
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Performance                                                                                                                                              
+     Assessment: Fastest. Rust proxy, battle-tested for production                                                                                                       
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Security                                                                                                                                                 
+     Assessment: Vetted by community. But you don't control the code                                                                                                     
+     ────────────────────────────────────────                                                                                                                            
+     Dimension: Scalability                                                                                                                                              
+     Assessment: Unlimited. Built for multi-tenant, multi-cluster                                                                                                        
+     Option C: Thin Fedora AI OS Wrapper Around AgentGateway                                                                                                             
+                                                                                                                                                                         
+     | Dimension                 | Assessment                                                                                    |                                       
+     |---------------------------|-----------------------------------------------------------------------------------------------|                                       
+     | Development time          | 3-6 weeks: wrap in Python, add Fedora-specific policies, trust model integration              |                                       
+     | Learning value            | Medium. Learn proxy operations + build integration layer                                      |                                       
+     | Long-term maintainability | Medium. Thin wrapper reduces risk but still depends on AgentGateway                           |                                       
+     | Vendor lock-in            | Moderate. Wrapper can be ported to another proxy. But your config and CEL investment persists |                                       
+     | Performance               | Near-native Rust. Python wrapper overhead is negligible (it's a thin layer)                   |                                       
+     | Security                  | Best of both: proven proxy + your custom security rules                                       |                                       
+     | Scalability               | Same as Option B                                                                              |                                       
+     9. What I'd Choose Today as Technical Lead                                                                                                                          
+                                                                                                                                                                         
+     Option A for V1. Not even close.                                                                                                                                    
+                                                                                                                                                                         
+     Here's why, brutally:                                                                                                                                               
+                                                                                                                                                                         
+     1. The CRITICAL_PATH.md success condition is curl -X POST localhost:8000/mcp with echo routing. That's a 200-line Python ASGI app (FastAPI/Starlette). Building     
+     it yourself proves you understand MCP at the protocol level — which you'll need for every subsequent component.                                                     
+                                                                                                                                                                         
+     2. AgentGateway solves problems you don't have. You have one user, one machine, Ollama, and local MCP servers. Rate limiting? Circuit breakers? Multi-tenancy?      
+     A2A? These are V3 concerns at best. You're optimizing for scale you don't have with technology you don't need.                                                      
+                                                                                                                                                                         
+     3. Every month spent learning AgentGateway's configuration is a month NOT building LangGraph integration, CEO agent, or Security agent. The gateway is              
+     infrastructure — it serves the agents, not the other way around.                                                                                                    
+                                                                                                                                                                         
+     4. The architectural trap: Adopting a heavy infrastructure component early forces your design into its abstractions. Your trust model, capability tokens, and       
+     SELinux integration all become "how do I encode this as a CEL expression?" instead of "what's the right design?"                                                    
+                                                                                                                                                                         
+     5. You can always switch later. A simple Python proxy → AgentGateway is a well-defined migration. AgentGateway → custom code is burning bridges you built           
+     everything on.                                                                                                                                                      
+                                                                                                                                                                         
+     The counter-argument (and it's valid): AgentGateway gives you production features for free. But you're not in production. You're in V1. The right thing to          
+     build in V1 is the simplest thing that works, not the most capable thing that exists.                                                                               
+     10. Final Recommendation                                                                                                                                            
+     SHORT TERM (0-3 months)                                                                                                                                             
+                                                                                                                                                                         
+     Build a minimal Python MCP Gateway.                                                                                                                                 
+                                                                                                                                                                         
+     Target: 200-400 lines. FastAPI + httpx + YAML config. JSON-RPC routing to statically configured backends. No auth, no circuit breaker, no OTel, no federation.      
+     Just route tools/call to a backend and return the response.                                                                                                         
+                                                                                                                                                                         
+     This satisfies the CRITICAL_PATH.md success condition and unblocks LangGraph integration, CEO agent, and Security agent — which are the REAL product.               
+                                                                                                                                                                         
+     Do NOT install AgentGateway now. It will consume 2-4 weeks of config/debug/integration time that should go to agent development.                                    
+     MEDIUM TERM (3-12 months)                                                                                                                                           
+                                                                                                                                                                         
+     Evaluate AgentGateway when you hit actual pain points.                                                                                                              
+                                                                                                                                                                         
+     Migration triggers:                                                                                                                                                 
+     - You need tool federation across 5+ MCP servers (not 1-2)                                                                                                          
+     - You need production auth (OAuth, JWT with JWKS)                                                                                                                   
+     - You're adding a second user                                                                                                                                       
+     - Performance becomes an actual bottleneck                                                                                                                          
+     - You need circuit breakers because backends are flaky                                                                                                              
+                                                                                                                                                                         
+     At that point, Option C (thin wrapper) becomes the right choice. You'll have running agents and a working prototype. Swapping the proxy underneath is a defined     
+     engineering task, not a research project.                                                                                                                           
+     LONG TERM (12+ months)                                                                                                                                              
+                                                                                                                                                                         
+     AgentGateway as infrastructure, Fedora AI OS as the orchestration layer.                                                                                            
+                                                                                                                                                                         
+     If the project succeeds (multi-user, multi-machine, production deployments), AgentGateway becomes the obvious infrastructure choice. By then:                       
+     - You understand your actual requirements (not imagined ones)                                                                                                       
+     - AgentGateway will be more mature (v2.x+)                                                                                                                          
+     - You have real workloads to test against                                                                                                                           
+     - The migration path from your thin Python proxy is clear                                                                                                           
+     Hidden Problems & Reasons NOT to Adopt                                                                                                                              
+                                                                                                                                                                         
+     1. Rust toolchain on Fedora: Building from source requires rustup or cargo. Pre-built binary means trusting a GitHub release artifact. Either way, not dnf          
+     install.                                                                                                                                                            
+                                                                                                                                                                         
+     2. Configuration complexity: AgentGateway's local config is NOT simple. Even the "simple" MCP backend YAML has 15+ fields. Getting it wrong means silent            
+     failures, not clear error messages.                                                                                                                                 
+                                                                                                                                                                         
+     3. Debugging opacity: Python proxy: add print(). Rust proxy: compile with debug symbols, attach gdb/lldb, or rely on OTel traces. The debugging cycle is orders     
+     of magnitude slower.                                                                                                                                                
+                                                                                                                                                                         
+     4. MCP protocol evolution: MCP spec is still evolving. AgentGateway tracks it, but with a delay. If you need a bleeding-edge MCP feature, you wait for their        
+     release cycle.                                                                                                                                                      
+                                                                                                                                                                         
+     5. The "just config" fallacy: "We'll just configure AgentGateway" assumes the config model matches your mental model. It won't. You'll fight it. Every              
+     infrastructure project does.                                                                                                                                        
+                                                                                                                                                                         
+     6. Bloat in the binary: LLM gateway, A2A gateway, K8s controller, XDS, 7+ provider integrations — all compiled into the binary you run on a single workstation      
+     to route MCP calls to 3 local servers.                                                                                                                              
+                                                                                                                                                                         
+     Bottom line: AgentGateway is excellent technology built by serious engineers. It's also a sledgehammer when you need a screwdriver. Build the screwdriver           
+     first. When you actually need to demolish walls, you'll know where the sledgehammer lives.                                                                          
+                                                                                                    

@@ -1,0 +1,609 @@
+============================================================
+FEDORA AI OS — TEAM ASSIGNMENT: KAPIL YADAV
+============================================================
+Role: Developer Experience & Infrastructure Engineer
+Focus: Documentation, CI/CD, Setup Guides, Dashboards, Contributor Onboarding
+Generated: 2026-06-08
+Project Lead: Lakshay (Founder)
+============================================================
+
+TABLE OF CONTENTS
+=================
+1. Mission
+2. Why This Role Matters
+3. Fedora AI OS Components Owned
+4. Learning Roadmap
+5. Month 1 Goals (Weeks 1–4)
+6. Month 2 Goals (Weeks 5–8)
+7. Month 3 Goals (Weeks 9–12)
+8. 15 GitHub Issues
+9. Reading Resources
+10. Success Criteria
+11. How to Get Help
+12. Files and Folders You Own
+
+============================================================
+1. MISSION
+============================================================
+
+Make Fedora AI OS easy to set up, easy to contribute to, and easy to
+understand. You own the "first 15 minutes" experience — from the moment
+someone clones the repo to the moment they run their first command. You
+also own the MCP Gateway health dashboard, the CI/CD pipeline, and the
+automation that keeps the project healthy (auto-labeling issues, running
+tests on PRs, publishing releases).
+
+Your work is the difference between "I got this running in 10 minutes"
+and "I gave up after reading the README." For a project that wants to
+attract Fedora community contributors, your work is essential.
+
+============================================================
+2. WHY THIS ROLE MATTERS
+============================================================
+
+The project has a working workflow engine with chaos-tested reliability.
+But looking at the CURRENT_STATE.md and NEXT_ACTIONS.md:
+
+  - The MCP Gateway README.md is a placeholder with blank sections
+  - There is no SETUP.md for first-time contributors
+  - There is no CI/CD pipeline (no GitHub Actions)
+  - There is no API documentation for the gateway
+  - There is no health dashboard (tracked in NEXT_ACTIONS #8)
+  - There is no contributor guide
+
+Every one of these gaps makes the project harder to use, harder to
+contribute to, and harder to trust. You close these gaps.
+
+Additionally, the NEXT_ACTIONS.md specifically tracks "MCP Gateway —
+Health Dashboard" (task #8) and later tasks reference dashboards and
+documentation. Your dashboard is what operators will use to see if the
+gateway is healthy. Your setup guide is what the next contributor will
+use to get started.
+
+============================================================
+3. COMPONENTS OWNED
+============================================================
+
+A. DOCUMENTATION (Month 1–3, ongoing)
+   - SETUP.md: development environment from zero to running gateway
+   - CONTRIBUTING.md: branch strategy, PR process, code style
+   - API.md: MCP Gateway HTTP API reference (all endpoints, request/response)
+   - ARCHITECTURE.md: high-level system diagram and component descriptions
+   - README files for every package (gateway, audit_memory, operational_memory)
+   - Files: docs/, README.md, each package's README.md
+
+B. CI/CD PIPELINE (Month 1–2)
+   - GitHub Actions workflow: run pytest on every PR
+   - Lint: flake8 or ruff on all Python files
+   - Status badges in README: build passing, coverage %
+   - Automated release: tag → build → publish to PyPI (or just tag)
+   - Files: .github/workflows/
+
+C. MCP GATEWAY HEALTH DASHBOARD (Month 2)
+   - Simple HTML page at GET /dashboard
+   - Shows each backend: name, URL, status (healthy/degraded/down)
+   - Circuit breaker state per backend
+   - Recent request count and error rate
+   - Auto-refresh every 5 seconds
+   - Files: gateway/dashboard.py, gateway/templates/dashboard.html
+
+D. RETRY AND CIRCUIT BREAKER (Month 2)
+   - Retry logic: 3 attempts with exponential backoff (1s, 2s, 4s)
+   - Circuit breaker: 3 consecutive failures → open 30s → half-open → closed
+   - Dead-letter queue: failed requests → audit memory (integrates with Jatin's work)
+   - Files: gateway/resilience.py
+
+E. DEVELOPER TOOLING (Month 3)
+   - pre-commit hooks: lint, format, check for secrets
+   - Makefile or Justfile: common commands (make test, make run, make lint)
+   - VS Code settings: .vscode/ with recommended extensions, formatter config
+   - Docker/Podman Compose: one command to start all services
+   - Files: Makefile, .pre-commit-config.yaml, .vscode/, compose.yaml
+
+============================================================
+4. LEARNING ROADMAP
+============================================================
+
+WEEK 1–2: Documentation Fundamentals
+  - Learn: Markdown (headers, lists, code blocks, tables, links)
+  - Learn: How to write good README files (README checklist pattern)
+  - Learn: Diátaxis documentation framework (tutorials, how-to, reference, explanation)
+  - Practice: Write a SETUP.md that a stranger could follow
+
+WEEK 3–4: GitHub Actions
+  - Learn: GitHub Actions YAML syntax (on, jobs, steps, runs-on)
+  - Learn: Python CI patterns (setup-python, install deps, run pytest)
+  - Learn: Caching pip dependencies for faster CI
+  - Practice: Create a workflow that runs pytest on push
+
+WEEK 5–6: Web Dashboard
+  - Learn: HTML basics (tables, meta refresh, basic CSS)
+  - Learn: FastAPI template rendering (Jinja2)
+  - Learn: How to expose live data via FastAPI endpoints
+  - Practice: Build a page that auto-refreshes and shows dynamic data
+
+WEEK 7–8: Resilience Patterns
+  - Learn: Retry pattern with exponential backoff
+  - Learn: Circuit breaker state machine (closed → open → half-open)
+  - Learn: tenacity library for retry, or write your own
+  - Practice: Implement retry + circuit breaker for HTTP calls
+
+WEEK 9–10: Developer Tooling
+  - Learn: pre-commit framework
+  - Learn: Makefile syntax (targets, prerequisites, variables)
+  - Learn: Podman Compose for multi-service orchestration
+  - Practice: Create a Makefile with 5 useful targets
+
+WEEK 11–12: Release Automation
+  - Learn: Semantic versioning (semver.org)
+  - Learn: GitHub Releases (tag → release notes → assets)
+  - Learn: How to automate releases with GitHub Actions
+  - Practice: Set up auto-release on tag push
+
+============================================================
+5. MONTH 1 GOALS (WEEKS 1–4)
+============================================================
+
+GOAL 1: Comprehensive Setup Guide
+  - docs/SETUP.md: one command to clone, install, and run
+  - Works on Fedora (primary target) and any Linux with Python 3.11+
+  - Covers: prerequisites, virtual environment, install, run, verify
+  - Includes troubleshooting section (common errors and fixes)
+  - Tested: a stranger follows the guide and gets gateway running
+
+GOAL 2: CI/CD Pipeline Running
+  - .github/workflows/ci.yml: runs pytest on every PR and push to main
+  - Installs Python, sets up venv, installs deps, runs tests
+  - Fails the PR if any test fails
+  - Status badge in main README: [![CI](https://...)]
+  - Pipeline completes in under 3 minutes
+
+GOAL 3: Package README Files
+  - mcp-gateway/README.md: rewrite with actual setup, run, test instructions
+  - audit_memory/README.md: setup, usage example, API reference
+  - operational_memory/README.md: setup, usage example, API reference
+  - Main repo README.md: project overview, link to SETUP.md, status badges
+
+GOAL 4: Linting Setup
+  - Add ruff or flake8 to CI
+  - pyproject.toml with lint configuration
+  - Lint errors fail the PR
+  - Fix any existing lint errors in the codebase
+
+DELIVERABLES (end of Month 1):
+  - docs/SETUP.md — tested setup guide
+  - docs/CONTRIBUTING.md — PR process, code style
+  - .github/workflows/ci.yml — CI pipeline
+  - README.md (root) — rewritten with badges
+  - README.md (gateway) — rewritten
+  - README.md (audit_memory) — created
+  - README.md (operational_memory) — created
+  - pyproject.toml — lint config added
+
+============================================================
+6. MONTH 2 GOALS (WEEKS 5–8)
+============================================================
+
+GOAL 1: MCP Gateway Health Dashboard
+  - GET /dashboard returns HTML page
+  - Shows backend table: name, URL, status (healthy/degraded/down)
+  - Status determined by health check (GET /health on each backend)
+  - Circuit breaker state shown (CLOSED, OPEN, HALF_OPEN)
+  - Recent request count and error rate (last 60 seconds)
+  - Auto-refresh every 5 seconds via <meta http-equiv="refresh">
+  - Works without JavaScript (pure HTML + server-side rendering)
+
+GOAL 2: Retry and Circuit Breaker Implementation
+  - Retry: 3 attempts, 1s/2s/4s backoff, non-retryable errors skipped
+  - Circuit breaker: 3 consecutive failures → OPEN (30s)
+  - After 30s → HALF_OPEN → success → CLOSED; failure → OPEN
+  - Dead-letter queue: failed requests → audit memory
+  - All resilience events logged
+
+GOAL 3: API Documentation
+  - docs/API.md: all gateway endpoints with request/response examples
+  - curl examples for every endpoint
+  - Status codes documented for every endpoint
+  - JSON Schema reference for tool definitions
+
+DELIVERABLES (end of Month 2):
+  - gateway/dashboard.py — dashboard endpoint
+  - gateway/templates/dashboard.html — dashboard HTML
+  - gateway/resilience.py — retry + circuit breaker + DLQ
+  - tests/test_dashboard.py — dashboard tests
+  - tests/test_resilience.py — resilience tests (with Jatin's help)
+  - docs/API.md — complete API reference
+
+============================================================
+7. MONTH 3 GOALS (WEEKS 9–12)
+============================================================
+
+GOAL 1: Developer Tooling
+  - Makefile with targets: setup, test, run, lint, clean, build
+  - .pre-commit-config.yaml: ruff, check-yaml, check-json, no-secrets
+  - .vscode/settings.json: Python path, formatter, recommended extensions
+  - .vscode/extensions.json: recommended VS Code extensions
+  - compose.yaml: start gateway + Redis + mock backend with one command
+
+GOAL 2: Architecture Documentation
+  - docs/ARCHITECTURE.md: high-level system diagram (ASCII art)
+  - Component descriptions: what each component does, how they connect
+  - Data flow: how a request flows through the system
+  - Deployment view: what runs where (containers, systemd services)
+
+GOAL 3: Release Automation
+  - GitHub Actions workflow: on tag push → run tests → create GitHub Release
+  - Auto-generated release notes from merged PRs
+  - Tag format: v0.1.0 (semantic versioning)
+  - Release includes: source tarball, changelog
+
+GOAL 4: Project Health Automation
+  - GitHub Actions: auto-label PRs by changed files (labeler)
+  - GitHub Actions: auto-close stale issues after 30 days (stale bot)
+  - GitHub Actions: welcome message for first-time contributors
+  - .github/ISSUE_TEMPLATE/: bug report template, feature request template
+
+DELIVERABLES (end of Month 3):
+  - Makefile — 6+ targets
+  - .pre-commit-config.yaml
+  - .vscode/ — settings and extensions
+  - compose.yaml — multi-service orchestration
+  - docs/ARCHITECTURE.md
+  - .github/workflows/release.yml
+  - .github/workflows/labeler.yml
+  - .github/ISSUE_TEMPLATE/
+
+============================================================
+8. 15 GITHUB ISSUES
+============================================================
+
+-- MONTH 1 --
+
+Issue 1: Write comprehensive SETUP.md
+  Description: Step-by-step guide from zero to running gateway. Covers
+  prerequisites (Python 3.11+, pip), clone, venv creation, dependency
+  install, gateway start, health check verification. Includes Fedora-
+  specific notes and troubleshooting section.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - Followed by a stranger with Python 3.11+ on Linux → gateway running
+    - Includes: prerequisites, clone, venv, install, run, verify, trouble
+    - Troubleshooting: at least 5 common errors with solutions
+    - File: docs/SETUP.md
+
+Issue 2: Set up GitHub Actions CI pipeline
+  Description: Workflow runs on every PR and push to main. Installs Python,
+  creates venv, installs dependencies, runs pytest. Fails if any test fails.
+  Caches pip for faster runs.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - .github/workflows/ci.yml exists
+    - Triggered: on push to main, on PR to main
+    - Runs pytest in all packages (gateway, audit_memory, operational_memory)
+    - PR gets red X if tests fail, green check if pass
+    - Pipeline completes in <3 minutes
+    - Status badge in README
+
+Issue 3: Rewrite all README files
+  Description: Main repo README, gateway README, audit_memory README,
+  operational_memory README. Each includes: what it is, how to install,
+  how to run, how to test, API overview (if applicable).
+  Difficulty: Easy
+  Acceptance Criteria:
+    - Root README: project overview, link to SETUP.md, status badges
+    - Gateway README: setup, run, test, config example
+    - Audit memory README: setup, usage example, API
+    - Operational memory README: setup, usage example, API
+    - All READMEs reviewed by Lakshay
+
+Issue 4: Add linting to CI pipeline
+  Description: Add ruff (preferred) or flake8 to CI. Configure in
+  pyproject.toml. Run on every PR. Lint errors fail the build. Fix any
+  existing lint errors.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - pyproject.toml has [tool.ruff] section
+    - .github/workflows/ci.yml runs ruff check
+    - Lint errors fail the PR
+    - 0 lint errors on current codebase (or fixed as part of this issue)
+    - Lint config is reasonable (not overly strict)
+
+Issue 5: Write CONTRIBUTING.md
+  Description: Guide for new contributors. Branch strategy (feature
+  branches, PR to main), code style (ruff rules, docstrings), PR process
+  (description template, review expectations), how to run tests, how to
+  report bugs.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - Branch strategy section
+    - Code style section (link to pyproject.toml)
+    - PR process section (template, what to include)
+    - Testing section (how to run tests locally)
+    - Bug reporting section
+    - File: docs/CONTRIBUTING.md (linked from root README)
+
+-- MONTH 2 --
+
+Issue 6: Build MCP Gateway health dashboard
+  Description: HTML page at GET /dashboard. Table showing each backend
+  with name, URL, status (healthy/degraded/down). Status from health
+  checks. Circuit breaker state. Recent request count and error rate.
+  Auto-refresh every 5 seconds via meta tag. No JavaScript required.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - curl localhost:8000/dashboard returns HTML
+    - Shows all configured backends from config.yaml
+    - Status updates based on health check results
+    - Circuit breaker state displayed (CLOSED/OPEN/HALF_OPEN)
+    - Request count and error rate shown (last 60s)
+    - Auto-refreshes every 5 seconds
+    - Works in a terminal browser (lynx/links) for testing
+
+Issue 7: Implement retry with exponential backoff
+  Description: Retry failed requests up to 3 times with delays of 1s, 2s,
+  4s. Only retry retryable errors (502, timeout, connection error). Do
+  NOT retry non-retryable errors (400, 401, 403, 404).
+  Difficulty: Medium
+  Acceptance Criteria:
+    - retry_call(func, max_attempts=3) retries on failure
+    - Backoff: 1s, 2s, 4s
+    - Non-retryable errors (400, 401, 403, 404) not retried
+    - Each retry attempt logged with attempt number
+    - After max attempts, returns original error
+    - Test: mock fails twice, succeeds third time
+
+Issue 8: Implement circuit breaker state machine
+  Description: Three-state circuit breaker. CLOSED: requests pass through.
+  3 consecutive failures → OPEN. OPEN: all requests fail fast for 30s
+  without calling backend. After 30s → HALF_OPEN: one probe request.
+  Success → CLOSED. Failure → OPEN (reset timer).
+  Difficulty: Medium
+  Acceptance Criteria:
+    - CircuitBreaker class with states: CLOSED, OPEN, HALF_OPEN
+    - 3 consecutive failures → OPEN
+    - OPEN for 30 seconds → HALF_OPEN
+    - HALF_OPEN + success → CLOSED
+    - HALF_OPEN + failure → OPEN (timer reset)
+    - Thread-safe (or asyncio-safe)
+    - Test: all state transitions
+
+Issue 9: Implement dead-letter queue to audit memory
+  Description: When retry is exhausted or circuit breaker is OPEN, write
+  the failed request to audit memory (via Jatin's audit_store module).
+  Include: original request, backend name, error, timestamp, retry count.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - Failed request written to audit memory
+    - Fields: request_body, backend_name, error_message, timestamp,
+      retry_count, circuit_breaker_state
+    - Format matches audit memory schema
+    - Test: failed request appears in audit query results
+
+Issue 10: Write API documentation
+  Description: Complete HTTP API reference for MCP Gateway. All endpoints,
+  request formats, response formats, status codes, error codes. curl
+  examples for every endpoint. JSON Schema reference for tool definitions.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - Every endpoint documented (GET /health, POST /mcp, GET /dashboard,
+      POST /approve if exists)
+    - Request/response examples for each
+    - Status codes documented
+    - curl examples that work when copy-pasted
+    - File: docs/API.md
+
+-- MONTH 3 --
+
+Issue 11: Create Makefile with common targets
+  Description: Makefile at repo root. Targets: setup (create venv, install
+  deps), test (run all tests), run (start gateway), lint (run ruff),
+  clean (remove venv, __pycache__), build (build packages).
+  Difficulty: Easy
+  Acceptance Criteria:
+    - make setup: creates venv, installs all packages in dev mode
+    - make test: runs pytest on all packages
+    - make run: starts gateway server
+    - make lint: runs ruff check
+    - make clean: removes venv, __pycache__, .pytest_cache
+    - make build: pip install build && python -m build (optional)
+    - All targets work from repo root
+
+Issue 12: Set up pre-commit hooks
+  Description: .pre-commit-config.yaml with hooks: ruff (lint + format),
+  check-yaml (validate YAML files), check-json (validate JSON files),
+  detect-private-key (no secrets committed), trailing-whitespace, end-of-
+  file-fixer.
+  Difficulty: Easy
+  Acceptance Criteria:
+    - pre-commit install works
+    - ruff hook lints changed files
+    - check-yaml validates config.yaml and CI YAML
+    - detect-private-key blocks commits with private keys
+    - All hooks pass on current codebase
+    - Documented in CONTRIBUTING.md
+
+Issue 13: Write ARCHITECTURE.md
+  Description: High-level architecture documentation. ASCII art diagram
+  showing all components and their connections. Description of each
+  component. Data flow: how a request moves through the system.
+  Deployment view: what runs in containers vs systemd services.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - ASCII art system diagram (readable in terminal)
+    - Component descriptions: Gateway, Memory Tiers, Agents, Runtime
+    - Data flow section: request → gateway → backend → response
+    - Deployment view: containers (Redis, Goose, Gateway), services
+    - Reviewed by Lakshay for accuracy
+    - File: docs/ARCHITECTURE.md
+
+Issue 14: Create Podman Compose file for all services
+  Description: compose.yaml that starts gateway + Redis + mock backend
+  with one command: podman-compose up. Each service with correct
+  dependencies, health checks, and security settings.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - podman-compose up starts all 3 services
+    - Gateway depends on Redis (waits for healthy)
+    - Health checks on all services
+    - podman-compose down stops and removes everything
+    - Documented in SETUP.md
+
+Issue 15: Set up release automation and issue templates
+  Description: GitHub Actions workflow triggered by tag push (v*).
+  Runs full test suite, creates GitHub Release with auto-generated notes.
+  Also: ISSUE_TEMPLATE for bugs and features. Stale bot for old issues.
+  Difficulty: Medium
+  Acceptance Criteria:
+    - .github/workflows/release.yml: tag → test → release
+    - Auto-generated release notes from merged PRs
+    - .github/ISSUE_TEMPLATE/bug_report.md exists
+    - .github/ISSUE_TEMPLATE/feature_request.md exists
+    - Stale bot: label issues stale after 30 days, close after 7 more
+    - Welcome bot: comment on first-time contributor PRs
+
+============================================================
+9. READING RESOURCES
+============================================================
+
+ESSENTIAL (Month 1):
+
+1. Markdown Guide
+   https://www.markdownguide.org/basic-syntax/
+   Focus: headers, lists, code blocks, tables, links, images
+
+2. Diátaxis Documentation Framework
+   https://diataxis.fr/
+   Focus: four types of documentation — tutorials, how-to guides,
+   reference, explanation. This is the gold standard.
+
+3. GitHub Actions Documentation
+   https://docs.github.com/en/actions
+   Focus: quickstart, workflow syntax, python setup
+
+4. README Checklist
+   https://github.com/ddbeck/readme-checklist
+   What every good README should include
+
+RECOMMENDED (Month 2):
+
+5. Jinja2 Template Designer Documentation
+   https://jinja.palletsprojects.com/en/stable/templates/
+   Focus: variables, loops, conditionals, template inheritance
+
+6. tenacity — Retry Library for Python
+   https://tenacity.readthedocs.io/
+   Focus: @retry decorator, wait_exponential, stop_after_attempt
+
+7. Circuit Breaker Pattern — Martin Fowler
+   https://martinfowler.com/bliki/CircuitBreaker.html
+   Classic article. Read the whole thing (it's short).
+
+8. HTML meta refresh
+   https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
+   Focus: http-equiv="refresh" attribute
+
+RECOMMENDED (Month 3):
+
+9. pre-commit Framework
+   https://pre-commit.com/
+   Focus: installation, configuration, built-in hooks
+
+10. GNU Make Manual
+    https://www.gnu.org/software/make/manual/
+    Focus: rules, prerequisites, recipes, variables, .PHONY
+
+11. Podman Compose
+    https://docs.podman.io/en/latest/markdown/podman-compose.1.html
+    Focus: podman-compose up, down, service dependencies
+
+12. Semantic Versioning
+    https://semver.org/
+    Focus: MAJOR.MINOR.PATCH, what each number means
+
+============================================================
+10. SUCCESS CRITERIA
+============================================================
+
+END OF MONTH 1:
+  - You can: write a README that a stranger can follow
+  - You can: set up a CI pipeline that runs tests automatically
+  - You can: configure linting for a Python project
+  - Code: SETUP.md works, CI is green, all READMEs are complete
+
+END OF MONTH 2:
+  - You can: build a server-rendered HTML dashboard
+  - You can: implement a circuit breaker state machine
+  - You can: document an HTTP API with curl examples
+  - Code: dashboard shows live data, resilience module works
+
+END OF MONTH 3:
+  - You can: automate a release pipeline from git tag
+  - You can: write a Makefile that any developer can use
+  - You can: draw an ASCII architecture diagram
+  - Code: pre-commit hooks work, compose.yaml works, release automation works
+
+============================================================
+11. HOW TO GET HELP
+============================================================
+
+1. Read first:
+   - Your own documentation (SETUP.md, CONTRIBUTING.md)
+   - Other open-source projects' docs for inspiration (FastAPI, Django, pytest)
+
+2. Ask Lakshay if:
+   - You're blocked for more than 2 hours
+   - You need a design decision (HTML vs JS dashboard, Makefile vs Just)
+   - You don't know what a component does (for documentation)
+
+3. Ask other team members:
+   - Lakshay Bharti: gateway endpoints, how routing works (for API docs)
+   - Ojasvi: what OAuth flow looks like (for API docs)
+   - Jatin: how tests are organized (for CI pipeline)
+
+4. When stuck, always bring:
+   - What you're trying to document/automate
+   - What you've written so far
+   - What specific detail you're unsure about
+
+============================================================
+12. FILES AND FOLDERS YOU OWN
+============================================================
+
+docs/
+  ├── SETUP.md                 — One-command setup guide
+  ├── CONTRIBUTING.md          — PR process, code style, branch strategy
+  ├── API.md                   — Gateway HTTP API reference
+  ├── ARCHITECTURE.md          — System diagram and component descriptions
+  └── assets/                  — Screenshots, diagrams (if any)
+
+.github/
+  ├── workflows/
+  │   ├── ci.yml               — Run tests on PR/push
+  │   ├── release.yml          — Tag → test → GitHub Release
+  │   ├── labeler.yml          — Auto-label PRs
+  │   └── stale.yml            — Close stale issues
+  └── ISSUE_TEMPLATE/
+      ├── bug_report.md
+      └── feature_request.md
+
+implementation/phase1/mcp-gateway/
+  └── gateway/
+      ├── dashboard.py          — Health dashboard endpoint
+      ├── resilience.py         — Retry, circuit breaker, dead-letter queue
+      └── templates/
+          └── dashboard.html    — Dashboard HTML template
+
+README.md                       — Root project README (you own this too)
+
+.pre-commit-config.yaml         — Pre-commit hooks
+Makefile                         — Common developer commands
+compose.yaml                    — Multi-service orchestration
+.vscode/
+  ├── settings.json
+  └── extensions.json
+
+============================================================
+END OF KAPIL YADAV ROLE ASSIGNMENT
+============================================================
+If you have questions about any task in this document, ask Lakshay (Founder)
+in the team channel before starting. Do not guess. Ship working code weekly.

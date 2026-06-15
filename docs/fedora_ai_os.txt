@@ -1,0 +1,1451 @@
+================================================================================
+                        FEDORA AI OS — FINAL REPORT v3.0
+              A Governed Cognitive Orchestration Layer for Fedora Linux
+                   Expanded Architecture & Implementation Blueprint
+================================================================================
+
+
+ABSTRACT
+--------
+
+Fedora AI OS is an AI-native orchestration layer built above Fedora Linux that
+transforms the operating system into a governed cognitive workspace. Rather than
+replacing Linux, the architecture augments Fedora and GNOME with persistent AI
+agents, memory systems, workflow orchestration, secure desktop automation, and
+adaptive assistance.
+
+The system combines existing open-source technologies:
+
+  - Fedora Linux (unmodified)
+  - GNOME + Wayland (unmodified)
+  - Podman (rootless containers with SELinux labeling)
+  - SELinux (mandatory access control per agent)
+  - LangGraph (durable workflow orchestration)
+  - Goose (MCP-native runtime executor, packaged for Fedora 43+)
+  - RamaLama (local model serving, native Goose sandbox support)
+  - AIOS + Cerebrum SDK (agent kernel and lifecycle management)
+  - OpenAdapt (demonstration-based workflow learning)
+  - Mem0 + A-MEM (semantic long-term memory)
+  - OpenTelemetry + Grafana (distributed observability)
+  - eBPF (Cilium-based network policy)
+  - Model Context Protocol (MCP)
+
+into a unified AI control plane operating above Linux.
+
+Core architecture principles:
+
+  - Governed Autonomy       — AI acts within enforced, auditable boundaries
+  - Security First          — Isolation before intelligence, always
+  - Observability           — Every action is traceable, replayable, and attributed
+  - Recoverability          — All failures must be reversible or compensatable
+  - Modularity              — Every component is independently replaceable
+  - Upstream Alignment      — Built with Fedora and GNOME ecosystems, not around them
+  - OS-Native Tooling       — Tool execution at the OS level, not bolted-on protocols
+
+[DISTRIBUTION SPECIFICITY]
+This architecture is fundamentally tied to Fedora Linux. The security model
+depends on SELinux type enforcement, which AppArmor (Ubuntu) cannot replicate
+at the same granularity. Podman's rootless, daemonless container model is
+native to Fedora. GNOME's AT-SPI2 accessibility bus, XDG Desktop Portals, and
+DBus provide the Wayland-safe desktop integration that no other desktop
+environment offers as a cohesive stack. Porting this architecture to another
+distribution would require rebuilding the security foundation from scratch.
+
+[VALIDATION FROM THE ECOSYSTEM]
+Red Hat has independently validated the core thesis of this architecture:
+  - Red Hat's Sally O'Malley (OpenClaw core maintainer) released Tank OS,
+    a bootable Fedora image that runs OpenClaw in rootless Podman containers
+    with SELinux enforcement and immutable, transactionally-updated OS images.
+    Tank OS is a single-agent implementation of the isolation model this
+    architecture extends to a multi-agent federation.
+  - RamaLama (Red Hat's local model serving tool) added native Goose sandbox
+    support via 'ramalama sandbox-goose', validating the Goose + Podman +
+    SELinux runtime stack.
+  - Goose is now a packaged RPM in Fedora 43, 44, and Rawhide, confirming
+    its viability as the core runtime executor agent.
+
+
+================================================================================
+1. INTRODUCTION
+================================================================================
+
+Modern operating systems are powerful execution environments but remain
+fundamentally passive. They execute commands but do not understand goals,
+workflows, intent, or context.
+
+Modern AI assistants possess reasoning capability but remain disconnected from
+the operating system itself. Tools like Agent Zero, OpenClaw, and various MCP-
+based frameworks have demonstrated agentic capability, but they suffer from
+critical flaws:
+
+  - RELIABILITY: Production traces show 28% failure rates for MCP tool calls
+    due to JSON-RPC schema drift, server timeouts, and SSE session discontinuity.
+  - SECURITY: 38% of 500+ scanned MCP servers lack ANY authentication. 1,862
+    MCP servers were found exposed on the public internet with zero identity
+    governance.
+  - IDENTITY: MCP drops the human user's identity at every trust boundary.
+    Servers cannot distinguish between a user-authorized action and a rogue
+    agent acting autonomously.
+  - ISOLATION: Current agent frameworks (OpenClaw included) have caused real
+    incidents: deletion of entire work email accounts, downloading of private
+    messages in plaintext, malware specifically targeting agent instances.
+
+The industry response has been to wrap agents in separate OS images (Tank OS)
+— effectively caging the AI to prevent it from causing harm. This works for
+isolated workloads, but it means the AI can never safely interact with your
+real desktop, your actual files, or your running applications.
+
+Fedora AI OS takes the opposite approach: instead of putting the AI in a cage,
+it teaches the operating system to manage AI like it manages user permissions.
+The OS itself becomes the authentication layer, the authorization layer, and
+the audit layer for every AI action.
+
+[THE FUNDAMENTAL INSIGHT]
+The operating system should be the authentication layer for tool execution.
+When you log into GNOME, the OS knows who you are. When you configure trust
+preferences, the Security Agent knows what you permit. When an agent requests
+a tool call, the OS checks: does this user allow this agent to perform this
+action at this trust level? This inherits identity governance from the OS
+itself, rather than trying to bolt it onto a protocol that was never designed
+for it.
+
+
+================================================================================
+2. CORE VISION
+================================================================================
+
+Fedora AI OS is NOT:
+
+  - A chatbot
+  - A shell wrapper
+  - A voice assistant
+  - A custom Linux distribution
+  - A single monolithic AI
+  - A replacement for the Linux kernel or GNOME
+
+It IS a cognitive orchestration layer operating above Fedora Linux, governed
+by seven foundational principles:
+
+  1. Governed Autonomy      — AI acts within enforced boundaries, not freely
+  2. Security First         — Isolation, sandboxing, and policy enforcement first
+  3. Observability          — Full distributed tracing, replayable execution logs,
+                              every action attributed to a human identity
+  4. Recoverability         — Every action must be reversible or compensatable
+  5. Modularity             — Components can be replaced without systemic impact
+  6. Upstream Alignment     — Community collaboration precedes code commits
+  7. OS-Native Execution    — Tool execution uses OS primitives (DBus, Unix
+                              sockets, systemd) rather than fragile protocols
+
+[WHY THIS IS NOT A CHATBOT]
+Chatbots store conversation transcripts and append them to prompts. This
+architecture stores structured facts, preferences, relationships, and audit
+records. The Memory Agent routes information to the correct tier. Only the
+relevant subset is retrieved per query. The LLM doesn't remember anything —
+the system remembers FOR the LLM.
+
+[WHY THIS CANNOT RUN ON OTHER DISTRIBUTIONS]
+  - Ubuntu: AppArmor uses path-based access control. You cannot express
+    "only the Desktop Agent may access AT-SPI, but not the Runtime Executor."
+    SELinux type enforcement handles this natively.
+  - Arch Linux: SELinux is optional and unsupported. Rolling release means
+    AT-SPI2 behavior can change between GNOME versions with no notice.
+  - openSUSE: The closest alternative, but SELinux is not default, and
+    Fedora's udica + audit2allow tooling is more mature.
+
+Fedora is the path of least resistance because the security foundation
+already exists and is well-maintained by the distribution.
+
+
+================================================================================
+3. PROJECT OBJECTIVES
+================================================================================
+
+Primary goals:
+
+  - Create a persistent, resilient AI control plane on Linux
+  - Enable secure AI-driven desktop automation via accessibility APIs
+  - Provide long-term semantic and contextual memory across sessions
+  - Reduce repetitive user micromanagement through workflow learning
+  - Maintain strong, verified security boundaries at all times
+  - Preserve Fedora and GNOME as stable, unmodified foundations
+  - Keep the system fully auditable, observable, and recoverable
+  - Support adaptive workflow orchestration with deterministic replay
+  - Build a first-class plugin architecture for community extensibility
+  - Establish an OS-native MCP Gateway that solves the reliability and
+    authentication failures inherent in current MCP implementations
+
+
+================================================================================
+4. HIGH-LEVEL ARCHITECTURE
+================================================================================
+
+The architecture consists of seven layers, plus a cross-cutting MCP Gateway
+service that all external tool calls route through:
+
+  L7  —  User Interface Layer
+  L6  —  AI Control Plane
+  L5  —  Workflow Orchestration
+  L4  —  Agent Kernel
+  L3  —  Specialist Agents
+  L2  —  Runtime Layer (includes MCP Gateway Agent)
+  L1  —  Fedora Linux Execution Layer
+
+Inter-layer communication is governed by typed contracts (Protobuf / JSON
+Schema) defined at project inception, enforced via contract testing in CI,
+preventing interface drift across the multi-agent system.
+
+[THE THREE TIERS OF TOOL EXECUTION]
+Tool execution is not a single mechanism. The architecture uses three
+progressively more powerful (and more expensive) execution tiers:
+
+  TIER 1 — Direct OS Execution (Zero Protocol Overhead)
+    For low-latency, predictable operations: mute, brightness, volume,
+    workspace switching, notifications. Handled by the Reflex Runtime
+    via direct DBus calls. No LLM. No MCP. No serialization. Microsecond
+    latency. Near-zero failure rate.
+
+  TIER 2 — Unix Socket Daemon (Structured Local Execution)
+    For desktop operations that need structured input/output: window
+    management, screenshots, clipboard, Bluetooth. Handled via a
+    Deskbrid-style daemon that wraps GNOME/DBus/Wayland into a simple
+    JSON-over-Unix-socket protocol. OS-authenticated via socket permissions.
+    Sub-millisecond latency.
+
+  TIER 3 — MCP Gateway (Structured External Execution)
+    For external API integrations, browser automation, cloud services,
+    and community plugins. All MCP traffic routes through a dedicated
+    Gateway Agent that handles authentication, retry, schema validation,
+    and audit logging. MCP is the right protocol for complex, typed tool
+    interfaces — but only when it's reliable and authenticated.
+
+[AGENT IDENTITY FLOW]
+  User logs into GNOME → OS knows who you are
+  User configures trust preferences → Security Agent stores capability bounds
+  Agent requests tool call → MCP Gateway checks capability token against
+    trust level and tool annotations
+  Tool executes in SELinux-labeled Podman container with scoped permissions
+  Action logged to Audit Memory with human identity attached
+  This inherits identity governance from the OS, rather than trying to
+  reconstruct it from static API keys that drop identity at every boundary.
+
+
+================================================================================
+5. LAYER-BY-LAYER ARCHITECTURE
+================================================================================
+
+------------------------------------------------------------------------
+5.1  USER INTERFACE LAYER (L7)
+------------------------------------------------------------------------
+
+Components:
+  - GNOME Shell extension (introduced in V2, after core stability)
+  - AI overlay panel with DAG workflow visualizer
+  - Workspace switcher (Human ↔ AI workspace)
+  - Graduated permission dialogs (non-modal where possible)
+  - Notification tray with inline undo for TRUST_1 / TRUST_2 actions
+  - AI workspace controls and status indicators
+  - Focus mode controls with interruption budget display
+
+Responsibilities:
+  - Display AI status and active workflow progress
+  - Surface permission approvals with contextual explanation
+  - Manage interruption policies based on user-defined budget
+  - Control workspace transitions with explicit state handoff
+  - Expose onboarding flow for new users
+
+Design Principle — Progressive Disclosure:
+  Permission surfaces use progressive disclosure — notification tray with
+  undo replaces modal interruptions at lower trust levels, reducing friction
+  while maintaining governance. Modal dialogs are reserved for TRUST_3 only.
+  This prevents the "approval fatigue" that leads users to blindly click
+  "Allow" on every prompt.
+
+Workspace Transition Protocol:
+  When transitioning from AI Workspace to Human Workspace:
+    1. AI Agent checkpoints all active workflows
+    2. Pending actions are queued, not cancelled
+    3. User receives summary of queued state
+    4. User may approve, defer, or discard each item
+  This prevents data loss and maintains user control across workspace boundaries.
+
+------------------------------------------------------------------------
+5.2  AI CONTROL PLANE (L6)
+------------------------------------------------------------------------
+
+Orchestration Model:
+  V1–V2: CEO Agent as primary orchestrator (pragmatic starting point)
+  V3:    Peer Consensus Orchestration with distributed coordination
+
+CEO Agent Responsibilities:
+  - Interpret user goals and decompose into executable workflows
+  - Plan multi-agent task graphs
+  - Spawn, coordinate, and suspend specialist agents
+  - Prioritize competing tasks and manage resource contention
+  - Coordinate approval requests without blocking unrelated workflows
+  - Enforce policy boundaries and escalation rules
+  - Handle graceful degradation during partial failures
+
+Resilience — Standby Orchestrator:
+  A lightweight Standby Orchestrator runs in parallel, monitoring the CEO
+  Agent via heartbeat. On CEO failure:
+    - Reflex Runtime continues low-latency operations uninterrupted
+    - Standby Orchestrator assumes coordination of in-flight workflows
+    - User is notified; full CEO Agent restarts from last checkpoint
+  This eliminates the cognitive coordination gap on CEO crash.
+
+Resource Contention Arbitration:
+  A dedicated Conflict Resolution Module within L6 mediates when multiple
+  specialist agents compete for shared resources:
+    - Filesystem locks
+    - DBus session ownership
+    - Display/input access
+    - Memory tier write access
+  Resolution uses a priority queue based on workflow urgency and trust level.
+
+------------------------------------------------------------------------
+5.3  WORKFLOW ORCHESTRATION LAYER (L5)
+------------------------------------------------------------------------
+
+Technology:  LangGraph
+
+Functions:
+  - Durable workflow graphs with named checkpoints
+  - Automatic retries with configurable backoff policies
+  - Rollback to any named checkpoint on failure
+  - Parallel branch execution with join synchronization
+  - Crash recovery from persistent checkpoint store
+  - Deterministic replay from any checkpoint for debugging
+  - Execution DAG export for visualization in UI
+
+Evaluation Harness (built in V1):
+  Every workflow produces structured telemetry including:
+    - Checkpoint timestamps
+    - Step latencies
+    - Retry counts
+    - Rollback events
+    - Tool call success/failure rates
+  This feeds the benchmark suite defined in Section 15.
+
+------------------------------------------------------------------------
+5.4  AGENT KERNEL LAYER (L4)
+------------------------------------------------------------------------
+
+Main Functions:
+  - LLM request scheduling with priority queuing
+  - Capability routing to appropriate specialist agents
+  - Memory tier routing with access control enforcement
+  - Context window management and switching
+  - Agent lifecycle management (see states below)
+  - Distributed event tracing (OpenTelemetry integration)
+  - Tool coordination and inter-agent message passing
+  - Typed contract validation on all inter-agent messages
+
+Core Technologies:
+  - AIOS
+  - Cerebrum SDK
+
+Agent Lifecycle States:
+  CREATED → WARM → ACTIVE → IDLE → SUSPENDED → HIBERNATED → TERMINATED
+
+  Transitions are logged with timestamps and triggering events for full
+  auditability. This prevents the architecture from becoming an "accidental
+  distributed cloud cluster" with agents consuming idle resources.
+
+------------------------------------------------------------------------
+5.5  SPECIALIST AGENT LAYER (L3)
+------------------------------------------------------------------------
+
+A. CEO AGENT
+   Role: Top-level orchestrator
+   Responsibilities:
+     - Goal interpretation and task decomposition
+     - Workflow delegation and agent coordination
+     - Policy management and trust enforcement
+     - Approval request aggregation
+
+B. STANDBY ORCHESTRATOR
+   Role: Resilience failover for CEO Agent
+   Responsibilities:
+     - Passive CEO health monitoring via heartbeat
+     - Active takeover on CEO failure
+     - Workflow state recovery from checkpoints
+     - User notification and CEO restart coordination
+
+C. WORKFLOW AGENT
+   Role: Workflow execution and reliability
+   Responsibilities:
+     - LangGraph graph execution
+     - Retry and rollback management
+     - Checkpointing
+     - DAG export for visualization
+
+D. DESKTOP AGENT
+   Technologies:
+     - Agent S3
+     - AT-SPI2
+     - GNOME APIs
+     - Vision fallback (GPU-bounded, metered)
+
+   Interaction Priority Stack:
+     Portal APIs          (preferred — fully Wayland-safe)
+     ↓
+     DBus                 (session bus interactions)
+     ↓
+     GSettings            (configuration reads/writes)
+     ↓
+     AT-SPI2              (accessibility automation)
+     ↓
+     Vision fallback      (GPU-metered, reliability-gated)
+     ↓
+     Synthetic input      (last resort, highest risk)
+
+   Accessibility Profile Database:
+     - Per-application AT-SPI reliability scores (updated continuously)
+     - Cached UI structures and automation hints
+     - Fallback strategy selection per application
+     - Automation completion rates per workflow
+
+   [DESKTOP AGENT USE CASES]
+   The Desktop Agent is not for trivial actions like "open Calculator" — the
+   Super key + typing is faster than speaking. It's for multi-step, multi-app
+   workflows that span 5+ minutes of mechanical navigation:
+     - Headless research: opens browser, navigates to specified sites,
+       extracts relevant information, compiles into a document
+     - Complex government portals: navigates nested menus and obscure forms
+     - Multi-app document workflows: cross-references between codebase,
+       changelog, and documentation, suggesting updates
+     - Accessibility: enables users with motor disabilities to accomplish
+       complex desktop tasks through natural language
+
+E. RUNTIME EXECUTOR
+   Technology: Goose (packaged for Fedora 43+, available via 'dnf install goose')
+   Responsibilities:
+     - Shell and code execution in sandboxed containers
+     - Browser automation
+     - File operations with rollback metadata
+     - Terminal workflow management
+   Why Goose: Rust-based, MCP-native, Linux-first, 70+ extensions, part of
+     the Linux Foundation's Agentic AI Foundation. Fedora-packaged RPM confirms
+     production readiness.
+
+F. SEMANTIC FILE AGENT
+   Technology: AIOS-LSFS
+   Purpose: Semantic filesystem interaction and file intent understanding
+   [WHY NOT JUST USE GNOME SEARCH OR TERMINAL AGENTS]
+   GNOME Search is literal — it matches strings, not meaning. Terminal agents
+   are scoped to one directory. The File Agent:
+     - Understands "related to my Python project" means pyproject.toml,
+       setup.cfg, or .env files, not every config.h on the system
+     - Spans multiple directories: ~/projects/, ~/.config/, /etc/, ~/.local/share/
+     - Connects events: "the PDF from that insurance email" → email received →
+       attachment downloaded → file created on that date → found, even though
+       the filename was doc_293847.pdf
+     - Filters by temporal + contextual: "config file I was editing last week"
+       → time window + project context + file type + edit history
+
+G. MEMORY AGENT
+   Technologies: Mem0, A-MEM, graph memory backends
+
+   Memory Tiers and Access Control:
+
+   ┌─────────────────────┬──────────────────────────┬────────────────────────┐
+   │ Tier                │ Purpose                  │ Access Control         │
+   ├─────────────────────┼──────────────────────────┼────────────────────────┤
+   │ Personal Memory     │ User preferences,         │ CEO Agent, Memory      │
+   │                     │ long-term context         │ Agent (read/write)     │
+   ├─────────────────────┼──────────────────────────┼────────────────────────┤
+   │ Operational Memory  │ Active session state,     │ All agents (read)      │
+   │                     │ workflow context          │ CEO Agent (write)      │
+   ├─────────────────────┼──────────────────────────┼────────────────────────┤
+   │ Graph Memory        │ Entity relationships,     │ Semantic File Agent,   │
+   │                     │ semantic links            │ Memory Agent           │
+   ├─────────────────────┼──────────────────────────┼────────────────────────┤
+   │ Audit Memory        │ Immutable action logs,   │ Security Agent (write) │
+   │                     │ approval records          │ All agents (read-only) │
+   └─────────────────────┴──────────────────────────┴────────────────────────┘
+
+   [WHY THIS IS NOT CHATBOT "MEMORY"]
+   Chatbot memory = storing raw conversation transcripts and stuffing them
+   into every prompt. This bloats the context window, increases cost, and
+   confuses the model with irrelevant history.
+   The Memory Agent extracts structured facts, preferences, and relationships.
+   Only the relevant subset is retrieved per query. Facts are promoted from
+   operational → personal based on recurrence. The security-sensitive facts
+   go to audit memory (immutable). The LLM doesn't remember — the system
+   remembers FOR the LLM, and retrieves only what's needed.
+
+   Memory Routing Algorithm:
+     def route_memory(fact):
+         if fact.type == "security_event":   return AUDIT_MEMORY
+         if fact.type == "relationship":     return GRAPH_MEMORY
+         if fact.recurrence_count > 3:        return PERSONAL_MEMORY
+         if fact.is_active_session:          return OPERATIONAL_MEMORY
+         return OPERATIONAL_MEMORY  # default: ephemeral
+
+H. SECURITY AGENT
+   Responsibilities:
+     - Real-time trust scoring per action
+     - Approval request management and routing
+     - Immutable audit log maintenance
+     - Rollback orchestration
+     - Capability token issuance and enforcement
+     - Runtime capability revocation on anomalous behavior
+       (triggers on: repeated policy violations, unexpected network calls,
+        anomalous syscall patterns, trust score degradation)
+
+   [WHY THE SECURITY AGENT IS NOT AN LLM]
+   The Security Agent is rule-based Python code, not a neural network. It
+   does not reason about security — it enforces deterministic policies.
+   Trust scoring heuristics, escalation rules, and revocation triggers are
+   auditable, testable, and revertible. You cannot "prompt inject" a
+   deterministic policy engine.
+
+I. DEMONSTRATION LEARNING AGENT
+   Technology: OpenAdapt
+   Purpose: Learns user workflows from demonstrations
+   Onboarding: Guided demonstration capture during initial setup
+
+J. CONFLICT RESOLUTION MODULE
+   Purpose: Resource contention arbitration between specialist agents
+   Mechanism: Priority queue based on workflow urgency + trust level
+   Scope: Filesystem, DBus, display, memory tier write access
+
+K. MCP GATEWAY AGENT (NEW — Core Infrastructure)
+   Purpose: Centralized, reliable, authenticated gateway for ALL external
+     MCP tool calls. Every other agent routes its external tool requests
+     through this gateway rather than connecting directly to MCP servers.
+
+   [WHY THIS EXISTS]
+   Production traces show 28% failure rates for MCP tool calls. 38% of
+   500+ scanned MCP servers lack ANY authentication. Agent Zero creates a
+   new connection for every single tool call, breaking SSE session continuity.
+   Current frameworks force every agent to reinvent authentication, retry,
+   and validation logic. The Gateway Agent solves these problems once, for
+   the entire system.
+
+   Gateway Functions:
+     - Maintain registry of known MCP servers (URLs, auth types, schemas)
+     - Handle all OAuth flows: store refresh tokens, proactively refresh
+       before expiry, detect revocations
+     - Validate every request and response against JSON Schema contracts
+     - Enforce retry logic: exponential backoff, circuit breakers, dead
+       letter queues for persistent failures
+     - Act as reverse proxy: external MCP servers never directly exposed
+       to the network
+     - Inject capability tokens into every forwarded request
+     - Log every tool call to Audit Memory with timestamps, latency,
+       authentication status, and the human identity that authorized it
+     - Health-check connections and maintain status dashboard
+
+   Agent Flow:
+     [Any Agent] → MCP request → [Gateway Agent] → external MCP server
+                      ↑                |
+                      |                ├─ Validate schema
+                      |                ├─ Check/inject OAuth token
+                      |                ├─ Health-check connection
+                      |                ├─ Apply retry policy
+                      |                ├─ Enforce capability token
+                      |                ├─ Log to audit trail
+                      |                └─ Return validated response
+
+   [GATEWAY AGENT BUILD PLAN — 4-6 WEEKS]
+   Week 1-2: Core proxy — accept MCP requests, forward to backends, return
+     responses. No auth or validation yet. Prove routing works.
+   Week 3: OAuth token management — store, refresh, inject tokens.
+   Week 4: Schema validation and health checking.
+   Week 5: Retry logic, circuit breakers, dead letter queues.
+   Week 6: Audit Memory integration and status dashboard.
+
+   Components needed (all already exist in open source):
+     - mcp Python SDK (official, for client-side)
+     - oauthlib + GNOME Keyring via Secret Service API (token management)
+     - jsonschema + MCP server manifests (schema validation)
+     - httpx (streamable HTTP connections, health pings)
+     - SQLite (same as Audit Memory backend)
+
+L. MCP TOOL ECOSYSTEM
+   Technology: Model Context Protocol (MCP)
+   Plugin Architecture:
+     Community contributors may add specialist agents and tools via a
+     first-class plugin API without modifying core system code.
+     All plugins are subject to the same SELinux, capability, and trust
+     enforcement as built-in agents. All plugin MCP traffic routes through
+     the Gateway Agent — plugins cannot bypass authentication or audit.
+
+   [MCP'S PROPER PLACE]
+   MCP is the right protocol for typed, structured tool interfaces that
+   benefit from JSON Schema validation and structured discovery. It is NOT
+   the right protocol for low-latency OS operations (mute, brightness) or
+   predictable CLI invocations. The architecture uses MCP where it adds
+   value (external APIs, browser automation, community plugins) and uses
+   direct OS execution where MCP would add latency without benefit.
+
+------------------------------------------------------------------------
+5.6  RUNTIME LAYER (L2)
+------------------------------------------------------------------------
+
+Components:
+  - Podman containers (per-agent isolation, rootless, Quadlet-defined)
+  - MCP Gateway Agent (centralized tool routing and authentication)
+  - Redis / NATS event bus
+  - Vector databases (semantic memory backends)
+  - Graph databases (relationship memory)
+  - MCP servers (each in its own SELinux-labeled Podman container)
+  - OpenTelemetry collector (traces, metrics, logs)
+  - Grafana dashboards (developer and power-user observability)
+  - eBPF network policy enforcement (Cilium-based, V2)
+
+[QUADLET EXAMPLE — CEO AGENT CONTAINER]
+  /etc/containers/systemd/ceo-agent.container:
+    [Container]
+    Image=ghcr.io/fedora-ai-os/ceo-agent:v1
+    Volume=%h/.config/fedora-ai-os:/data:Z
+    Network=host
+    Environment=OPENAI_API_KEY_FILE=/run/secrets/openai_key
+    [Service]
+    Restart=always
+    [Install]
+    WantedBy=multi-user.target
+
+  'podman generate systemd' creates the service, which systemd manages.
+
+------------------------------------------------------------------------
+5.7  FEDORA LINUX EXECUTION LAYER (L1)
+------------------------------------------------------------------------
+
+Components:
+  - Fedora Linux (unmodified)
+  - GNOME (unmodified core)
+  - Wayland
+  - systemd
+  - SELinux
+  - Linux kernel
+  - eBPF subsystem
+
+[WHY THE BASE LAYER IS UNMODIFIED]
+The entire architecture operates through existing, stable interfaces:
+DBus, AT-SPI2, Portal APIs, systemd, SELinux policies. No kernel patches.
+No GNOME forks. No SELinux bypasses. This ensures compatibility with every
+Fedora update and allows the project to focus on the integration layer rather
+than maintaining forks of core infrastructure.
+
+
+================================================================================
+6. SECURITY ARCHITECTURE
+================================================================================
+
+Security Layers (defense in depth):
+
+  1. SELinux domain confinement per agent
+  2. Podman container isolation with dropped capabilities
+  3. seccomp filtering per container
+  4. Namespace isolation (user, network, mount, PID)
+  5. Capability scoping via kernel capability tokens
+  6. Trust level enforcement at action boundary
+  7. MCP Gateway authentication and schema validation
+  8. eBPF network policy isolation (V2)
+  9. Rollback systems for all mutating operations
+  10. Immutable audit logs (append-only, tamper-evident)
+  11. Runtime capability revocation on anomaly detection
+
+[WHY SELINUX + PODMAN IS NOT BYPASSED]
+Critics correctly note that an agent is just an orchestrator — labeling the
+agent process alone is meaningless. The security happens one layer down:
+at the MCP tool servers.
+
+  - Agents NEVER access files directly. They send MCP messages.
+  - Each MCP tool server runs in its OWN Podman container with its OWN
+    SELinux label.
+  - mcp_file_reader_t: read-only, specific directories
+  - mcp_file_writer_t: write-only, ~/projects/ only
+  - mcp_dnf_t: can install from whitelist, cannot modify configs
+  - mcp_terminal_t: container with no sudo, no network, tmpfs-only
+  - mcp_desktop_t: can access AT-SPI2 and DBus, cannot spawn processes
+
+The agent cannot "spawn a process that inherits its permissions" because
+it literally cannot spawn processes outside its own container. It can only
+send structured messages to separately isolated tool servers.
+
+This is genuinely stronger than today's status quo, where an AI coding agent
+running as your user has access to everything you have access to. Here, the
+agent orchestrates, but each tool is individually sandboxed with minimal
+permissions.
+
+[COMPARISON: FEDORA AI OS vs. TANK OS vs. OPENCLAW RAW]
+  OpenClaw raw: One powerful agent, all your user permissions, no isolation.
+    Requires external tools to force into containers.
+  Tank OS: OpenClaw in a read-only, immutable Fedora image with Podman
+    isolation. Single-agent. Secure, but cannot safely interact with your
+    real desktop.
+  Fedora AI OS: Multiple specialized agents, each with scope-limited MCP
+    tool servers, each in its own SELinux-labeled Podman container. Can
+    safely share your real GNOME desktop because the OS enforces the rules.
+
+
+================================================================================
+7. SELINUX IMPLEMENTATION STRATEGY
+================================================================================
+
+Phase 0 (V1 — Baseline Isolation):
+  - systemd sandboxing for all agent services
+  - seccomp filtering (allowlist approach)
+  - Linux capability dropping (principle of least privilege)
+  - Namespace isolation per agent container
+
+Phase 1 (V1 — Policy Generation):
+  - udica-generated SELinux policies from container profiles
+  - Initial policy testing in permissive mode with audit logging
+
+Phase 2 (V2 — Policy Refinement):
+  - Policy tightening using audit2allow analysis of real usage logs
+  - Transition to enforcing mode per agent, graduated rollout
+
+Phase 3 (V2/V3 — Upstream Collaboration):
+  - Active collaboration with Fedora SELinux SIG
+  - Policy submission to Fedora repositories
+  - GNOME maintainer coordination for portal and DBus policy
+
+
+================================================================================
+8. TRUST LEVELS & ESCALATION RULES
+================================================================================
+
+Trust Level Definitions:
+
+  TRUST_0  —  Safe read-only operations
+               Examples: reading files, querying system state
+               UX: Silent execution, logged only
+
+  TRUST_1  —  Low-risk mutating operations
+               Examples: creating files in user home, opening applications
+               UX: Notification tray entry with inline undo (non-modal)
+               Escalation trigger: If action scope expands beyond original
+               intent, automatically escalates to TRUST_2
+
+  TRUST_2  —  Moderate-risk operations requiring confirmation
+               Examples: modifying system settings, sending emails
+               UX: Notification with explicit confirm/deny
+               Escalation trigger: If operation touches resources outside
+               declared workflow scope, escalates to TRUST_3
+
+  TRUST_3  —  High-risk operations requiring multi-step approval
+               Examples: installing software, modifying security config,
+               outbound network requests from sandboxes
+               UX: Modal dialog with full action explanation and diff preview
+               Escalation trigger: N/A — highest level
+
+Escalation Rules:
+  - Scope expansion beyond declared workflow boundary → escalate +1 level
+  - Unexpected network call from sandboxed agent → escalate to TRUST_3
+  - Trust score degradation detected by Security Agent → escalate +1 level
+  - User dismissal of same action type ≥3 times → flag for review
+  - All escalations are logged in Audit Memory with justification
+
+Runtime Revocation:
+  The Security Agent may revoke an agent's capability token mid-session
+  upon detecting:
+    - Repeated policy violations
+    - Anomalous syscall patterns (eBPF monitoring)
+    - Network requests not matching declared workflow intent
+    - Trust score below configured threshold
+  Revoked agents are suspended and their workflows checkpointed for review.
+
+
+================================================================================
+9. WORKSPACE MODEL
+================================================================================
+
+Human Workspace:
+  - Minimal AI interruption (interruption budget: Quiet or Balanced)
+  - Lightweight contextual assistance only
+  - AI agents operate in background with reduced priority
+  - Reflex Runtime handles only low-latency passive actions
+
+AI Workspace:
+  - Autonomous multi-step workflow execution
+  - Long-running task processing
+  - Full agent pool activation
+  - Isolated from user foreground activity
+  - Two modes:
+      🟢 No-Interruption Mode: AI operates autonomously within approved scope.
+         Suitable for lengthy but well-understood tasks (setting up dev
+         environments, running test suites, processing batches).
+      🟡 Interruption Mode: AI pauses before every significant change and
+         asks the user. Suitable for tasks requiring human judgment (editing
+         production configs, making security-relevant changes).
+
+  All changes in AI Workspace are sandboxed. They only merge into the real
+  system after user review and approval — like a git diff for your entire
+  computer.
+
+Workspace Transition Protocol (Human → AI):
+  1. User explicitly activates AI Workspace
+  2. CEO Agent receives goal specification
+  3. Workflow planning and agent spawning begins
+  4. User receives estimated timeline and resource usage
+
+Workspace Transition Protocol (AI → Human):
+  1. User reclaims workspace (explicit or idle timeout)
+  2. CEO Agent checkpoints all active workflows immediately
+  3. In-flight actions complete current atomic step, then pause
+  4. User receives summary of paused state with options:
+       a. Resume later
+       b. Cancel with rollback
+       c. Continue in background (reduced priority)
+  5. AI Workspace releases display and input resources
+
+
+================================================================================
+10. LLM ROUTING: WHERE MODELS RUN
+================================================================================
+
+[HYBRID LOCAL/CLOUD STRATEGY]
+The architecture does not lock users into local-only or cloud-only. The
+Agent Kernel routes LLM calls based on task complexity, data sensitivity,
+and available hardware:
+
+  Complexity      Where it runs     Example
+  ──────────      ─────────────     ───────
+  Trivial         No LLM at all     "Mute microphone" → Reflex Runtime (DBus)
+  Simple          Local (Ollama/    "Find Python files modified this week"
+                  RamaLama, 7B)
+  Medium          Local (13B+) or   "Summarize this document"
+                  Cloud
+  Complex         Cloud (OpenAI/    "Plan multi-step workflow with dependencies"
+                  Claude) or
+                  powerful local GPU
+
+Sensitive data (personal files, credentials, private code) stays local by
+default. An agent that reads your documents does not send them to OpenAI.
+Only tasks that genuinely need powerful reasoning hit the cloud, and even
+then, the data sent is minimized.
+
+[SPECIALIZED MODELS — V1 vs. V2]
+  V1: One model serves all agents. Specialization comes from MCP tool access,
+    not the model. The Security Agent is rule-based (no LLM at all).
+  V2+: Optional specialized models loaded lazily when their agent activates.
+    A coding agent might use DeepSeek-Coder. A summarization agent might use
+    a smaller, faster model. Models unload from memory when the agent
+    hibernates. You are not running 5 models simultaneously on a laptop.
+
+
+================================================================================
+11. REFLEX RUNTIME
+================================================================================
+
+Purpose: Low-latency action handling independent of CEO Agent state.
+
+Survives CEO Agent failure and continues operating during orchestrator restart.
+
+Handles:
+  - Brightness and volume controls
+  - Mute/unmute toggles
+  - Media playback controls
+  - Notification management
+  - Workspace switching
+  - Focus mode toggling
+  - Wake-word or hotkey activation
+
+Implementation:
+  - Runs as a separate systemd service
+  - Direct DBus access (no agent kernel routing)
+  - Sub-100ms response target
+  - No LLM calls — rule-based only
+
+[WHY THIS EXISTS]
+If every action — even "mute microphone" — had to go through the CEO Agent →
+LangGraph → LLM → MCP pipeline, the system would feel unacceptably slow.
+The Reflex Runtime handles the 80% of actions that are predictable,
+well-understood OS operations, using direct DBus calls with zero protocol
+overhead, zero LLM latency, and near-zero failure rate.
+
+
+================================================================================
+12. OBSERVABILITY ARCHITECTURE (MANDATORY FROM V1)
+================================================================================
+
+Distributed Tracing:
+  - OpenTelemetry SDK integrated into every agent from day one
+  - Trace context propagated across all inter-agent messages
+  - Trace IDs attached to every LLM call, tool invocation, and approval
+    request
+
+Metrics:
+  - Agent lifecycle transition counts and durations
+  - LLM call latency and token usage per agent
+  - AT-SPI success rate per application
+  - Vision fallback frequency and latency
+  - Workflow completion, retry, and rollback rates
+  - Trust escalation frequency by level
+  - Memory tier read/write latency
+  - MCP Gateway: tool call success/failure rates, auth status, latency
+
+Logging:
+  - Structured JSON logs from all agents
+  - Correlation with trace IDs for log-to-trace linking
+  - Audit Memory logs are append-only and tamper-evident
+
+Visualization:
+  - Grafana dashboards for developer and power-user use
+  - Workflow DAG visualizer integrated into L7 UI
+  - Live agent state viewer in GNOME extension (V2)
+
+Execution Replay:
+  - Every workflow is replayable deterministically from any checkpoint
+  - Replay uses recorded tool call inputs and outputs
+  - Used for debugging, regression testing, and speculative execution review
+
+
+================================================================================
+13. HARDWARE OVERHEAD MITIGATION
+================================================================================
+
+Optimizations:
+  - Warm agent pools (frequently used agents pre-initialized)
+  - Lazy graph loading (LangGraph workflows loaded on demand)
+  - Event-based agent activation (no polling)
+  - Asynchronous embedding generation (non-blocking memory writes)
+  - Local/cloud hybrid LLM routing (local for low-complexity, cloud for heavy)
+  - Automatic agent suspension on inactivity (configurable timeout)
+  - GPU usage metering for vision fallback (capped utilization percentage)
+
+Target Hardware Profile:
+  - Minimum: 16GB RAM, modern x86_64 CPU
+  - Recommended: 32GB RAM, discrete GPU for vision fallback
+  - Local LLM inference: GPU strongly recommended for V2+
+
+
+================================================================================
+14. WAYLAND COMPATIBILITY STRATEGY
+================================================================================
+
+Interaction Priority (enforced at Desktop Agent):
+
+  Portal APIs          — XDG Desktop Portal (preferred, Wayland-safe)
+  ↓
+  DBus                 — Session bus for GNOME service interaction
+  ↓
+  GSettings            — Configuration reads/writes
+  ↓
+  AT-SPI2              — Accessibility automation
+  ↓
+  Vision fallback      — GPU-metered, used only when AT-SPI unavailable
+  ↓
+  Synthetic input      — Last resort, restricted to TRUST_3 + explicit approval
+
+All automation attempts use the highest available API in the stack.
+Synthetic input is never used without explicit TRUST_3 approval.
+
+
+================================================================================
+15. BENCHMARK SUITE & EVALUATION HARNESS
+================================================================================
+
+Built in V1. Go/no-go criteria for phase transitions are based on these metrics.
+
+AT-SPI Reliability Benchmark:
+  - Target applications: Firefox, GNOME Files, Terminal, LibreOffice, VSCode
+  - Metric: AT-SPI success rate (target ≥85% before V2 launch)
+  - Measured per workflow, per application version
+
+Vision Fallback Benchmark:
+  - Metric: Fallback frequency (target: <15% of Desktop Agent interactions)
+  - Metric: Fallback latency (target: <2s median)
+  - Metric: GPU utilization during fallback (target: <30% sustained)
+
+Workflow Reliability Benchmark:
+  - Metric: End-to-end workflow completion rate (target ≥90%)
+  - Metric: Rollback success rate (target: 100%)
+  - Metric: Checkpoint recovery time (target: <5s)
+
+Interruption Quality Benchmark:
+  - Metric: Dismissal rate (target: <20% for Balanced mode)
+  - Metric: Undo rate per action type (target: <5%)
+
+Memory System Benchmark:
+  - Metric: Retrieval latency (Personal/Operational: target <100ms)
+  - Metric: Graph query latency (target <500ms)
+
+MCP Gateway Benchmark:
+  - Metric: Tool call success rate through gateway (target: >99%)
+  - Metric: Authentication success rate (target: 100%)
+  - Metric: Gateway-added latency (target: <50ms median)
+
+
+================================================================================
+16. FAILURE CONTAINMENT
+================================================================================
+
+Failure Scenarios and Responses:
+
+  Vision failure          →  AT-SPI fallback (automatic, logged)
+  AT-SPI failure          →  Vision fallback (GPU-metered, logged)
+  CEO Agent crash         →  Standby Orchestrator activates;
+                             Reflex Runtime continues uninterrupted;
+                             Workflows resume from checkpoint on restart
+  Workflow Agent crash    →  LangGraph checkpoint recovered;
+                             Retry from last stable state
+  Graph DB failure        →  Semantic search disabled;
+                             Operational and Personal memory continue
+  Cloud LLM outage        →  Local LLM fallback (reduced capability);
+                             User notified of degraded mode
+  Memory tier failure     →  Affected tier isolated;
+                             Other tiers continue unaffected
+  Security Agent failure  →  All TRUST_1+ actions blocked until restored;
+                             TRUST_0 read-only operations continue
+  eBPF policy failure     →  Network access blocked for affected agent;
+                             Fail-closed, not fail-open
+  MCP Gateway failure     →  Tier 1 & 2 operations continue unaffected;
+                             External tool calls queued for retry
+
+
+================================================================================
+17. SPECULATIVE EXECUTION SAFETY (V3)
+================================================================================
+
+All speculative execution occurs inside Shadow Execution Sandboxes.
+
+Known Hidden Side-Effect Categories (requiring explicit containment):
+  - Outbound network requests
+  - External API mutations
+  - Service registrations
+  - systemd unit state changes
+  - Scheduled job creation (cron, systemd timers)
+  - IPC interactions with other processes
+  - DBus signal emissions
+
+Shadow Sandbox Features:
+  - Overlay-backed filesystem (disposable, no host writes)
+  - Network policy isolation (eBPF — blocks external calls unless declared)
+  - syscall tracing (eBPF — records all syscalls during speculative run)
+  - Deterministic replay of speculative execution for review
+  - Human-readable diff of all proposed changes
+  - Explicit user approval required before committing to host system
+  - Full rollback if approval is denied or timeout expires
+
+V3 Research Requirements:
+  - eBPF-based network isolation for sandboxes
+  - Deterministic replay system for syscall traces
+  - Side-effect detection beyond filesystem (IPC, DBus, scheduled jobs)
+  - Diff visualization for non-filesystem changes
+
+
+================================================================================
+18. PLUGIN ARCHITECTURE
+================================================================================
+
+Community contributors may extend Fedora AI OS without modifying core code.
+
+Plugin Types:
+  - Specialist Agents     (new agent with defined capability set)
+  - MCP Tool Servers      (new tool integrations via MCP protocol)
+  - Memory Backends       (alternative vector/graph database backends)
+  - Workflow Templates     (pre-built LangGraph workflow definitions)
+  - Desktop Profiles      (AT-SPI profiles for specific applications)
+
+Plugin Contract Requirements:
+  - Must declare capability requirements (enforced by Agent Kernel)
+  - Must expose OpenTelemetry instrumentation
+  - Must implement typed inter-agent message contracts (Protobuf/JSON Schema)
+  - Subject to same SELinux policy requirements as built-in agents
+  - All MCP traffic routes through the MCP Gateway Agent
+  - Distributed via Fedora COPR or dedicated plugin registry
+
+Review Process:
+  - Security review required for new capability requests
+  - Fedora SELinux SIG review for policy additions
+  - Plugin API versioned independently from core system
+
+
+================================================================================
+19. GOVERNANCE & OPEN-SOURCE STRATEGY
+================================================================================
+
+19.1 UPSTREAM-FIRST DEVELOPMENT APPROACH
+
+Code follows community alignment — not the reverse. Sequence:
+  1. Submit RFCs and Fedora Change proposals BEFORE writing code
+  2. Engage Fedora and GNOME maintainers in design discussions
+  3. Contribute upstream fixes and improvements as part of development
+  4. Submit integration patches only after community alignment is achieved
+
+Collaboration Targets:
+  - Fedora Workstation Working Group
+  - Fedora Accessibility Working Group
+  - Fedora SELinux SIG
+  - Fedora AI/ML SIG (active Matrix room, RamaLama + Goose integration)
+  - GNOME maintainers (Shell, Accessibility, Portal)
+  - GUADEC community
+  - OpenAdapt upstream
+  - AIOS / Cerebrum SDK maintainers
+
+19.2 PROJECT GOVERNANCE MODEL
+
+Steering Committee:
+  - 5 members: 2 core contributors, 1 Fedora representative,
+    1 GNOME representative, 1 community-elected member
+  - Meets bi-weekly; decisions recorded publicly
+
+Roles:
+  - Maintainers: merge authority per subsystem
+  - Contributors: PR submission rights
+  - Security Team: responsible disclosure handling
+  - Plugin Reviewers: plugin registry approval authority
+
+Decision Making:
+  - Technical decisions: maintainer consensus
+  - Architectural changes: steering committee vote
+  - Security policies: security team with steering committee ratification
+
+Security Disclosure:
+  - Private disclosure period: 90 days
+  - Coordinated release with Fedora Security Team
+  - CVE assignment for qualifying vulnerabilities
+
+19.3 LICENSING
+
+  - Core system: GPL-2.0 (Fedora ecosystem compatible)
+  - SDK and Plugin API: LGPL-2.1 (permissive for plugin authors)
+  - Documentation: CC BY-SA 4.0
+
+
+================================================================================
+20. ONBOARDING FLOW
+================================================================================
+
+First-run experience for new users:
+
+  Step 1: Welcome & Scope Explanation
+    - What Fedora AI OS does and does not do
+    - What data is stored and where
+    - How to review and revoke permissions at any time
+
+  Step 2: Permission Grants
+    - Accessibility API access (AT-SPI)
+    - Notification permissions
+    - File access scope selection (home directory, specific folders)
+    - Optional: cloud LLM API key configuration
+
+  Step 3: Trust Level Configuration
+    - User selects default interruption mode (Quiet / Balanced / Assistive)
+    - User sets TRUST_2 and TRUST_3 confirmation preferences
+
+  Step 4: Demonstration Recording (Optional)
+    - User records 1–3 workflows via OpenAdapt demonstration capture
+    - System extracts workflow patterns for Demonstration Learning Agent
+
+  Step 5: Baseline Benchmarking
+    - System runs AT-SPI benchmark on installed applications
+    - Reliability profiles populated for Desktop Agent
+    - User informed of any applications with low AT-SPI reliability
+
+  Step 6: Completion
+    - Summary of configured capabilities
+    - Link to audit log viewer
+    - Introduction to AI Workspace activation
+
+
+================================================================================
+21. ENGINEERING RISK ASSESSMENT
+================================================================================
+
+Risk Level   Area
+─────────    ──────────────────────────────────────────────────────────────
+Low          Goose + MCP integration
+Low          Deterministic workflow replay (LangGraph checkpointing)
+Low          MCP Gateway core proxy (routing layer)
+Medium       GNOME extension development (deferred to V2)
+Medium       Local/cloud LLM hybrid routing
+Medium       Interruption learning algorithm design
+Medium       MCP Gateway OAuth and schema validation
+High         SELinux policy authoring and maintenance
+High         eBPF network policy implementation
+High         Upstream collaboration (Fedora + GNOME acceptance timeline)
+Very High    Reliable AT-SPI automation across diverse applications
+Very High    Multi-agent distributed debugging at scale
+
+
+================================================================================
+22. UNRESOLVED RISKS & RESEARCH CHALLENGES
+================================================================================
+
+1. ADAPTIVE INTERRUPTION LEARNING
+   Status: Design specified; algorithm not yet selected
+   Approach: Contextual bandit model (V2 target)
+   Missing: Evaluation dataset; anti-annoyance safeguard tuning
+   Risk: Poor learning reduces trust; notification fatigue drives uninstall
+   Mitigation: Hard interruption cap; explainable scoring; easy opt-out
+
+2. SPECULATIVE EXECUTION SIDE-EFFECTS
+   Status: Filesystem diffs insufficient; broader containment required
+   Missing: eBPF syscall tracing; IPC and DBus side-effect detection
+   Risk: Speculative execution causes unintended real-world mutations
+   Mitigation: Shadow sandboxes mandatory for all speculative actions (V3)
+
+3. MULTI-AGENT DEBUGGING AT SCALE
+   Status: OpenTelemetry integrated from V1 (addresses V1 scope)
+   Missing: Causality graph tooling; latency attribution across agent hops
+   Risk: Complex bugs become nearly impossible to diagnose at V2+ scale
+   Mitigation: Execution replay; structured logging; Grafana correlation
+
+4. UPSTREAM COLLABORATION DEPENDENCY
+   Status: Engagement strategy defined (upstream-first)
+   Risk: Fedora or GNOME maintainers reject integration approach
+   Mitigation: Start with non-invasive integrations (DBus, Portal APIs);
+               build community trust before requesting core changes
+
+5. VISION FALLBACK COST & LATENCY
+   Status: GPU metering specified; benchmarks defined
+   Missing: Real-world fallback frequency measurements
+   Risk: High fallback rates make system unusable on low-end hardware
+   Mitigation: AT-SPI improvement program per application; fallback caps
+
+6. MCP GATEWAY ADOPTION
+   Status: Gateway design specified; no implementation yet
+   Risk: Gateway becomes a bottleneck if not designed for throughput
+   Mitigation: Stateless design, horizontal scaling via multiple gateway
+     instances behind a load balancer; batch JSON-RPC support from MCP spec
+
+
+================================================================================
+23. MVP DEVELOPMENT STRATEGY
+================================================================================
+
+V1 — FOUNDATION (8-10 weeks solo, 6-8 months team)
+  Target: Stable, observable core runtime with reliable tool execution
+
+  Scope:
+    - Goose runtime integration (dnf install goose, configured with MCP)
+    - MCP Gateway Agent (core proxy with basic retry, auth deferred to V1.5)
+    - Reflex Runtime (direct DBus for mute, brightness, workspace switch)
+    - SQLite-backed operational memory
+    - CEO Agent (LangChain + LangGraph, basic orchestration)
+    - Standby Orchestrator (heartbeat + failover)
+    - Approval system (notification tray + TRUST_3 modal)
+    - DBus bridge (GNOME Shell → Python backend → Goose)
+    - OpenTelemetry integration (all agents instrumented)
+    - Grafana dashboards (basic)
+    - AT-SPI benchmark suite (baseline collection only)
+    - Podman rootless container (Quadlet definition for Goose)
+    - Typed inter-agent contracts (Protobuf definitions)
+
+  V1 Go/No-Go Criteria:
+    - Workflow completion rate ≥ 90% on defined test suite
+    - CEO Agent failover works within 10 seconds
+    - Distributed traces available for all inter-agent interactions
+    - MCP Gateway routes tool calls with >99% success rate
+    - Reflex Runtime responds to mute/brightness within 100ms
+    - AT-SPI benchmark baseline established
+    - Upstream RFC submitted to Fedora Workstation WG
+
+  Explicitly NOT in V1:
+    - GNOME Shell extension
+    - Semantic memory (Mem0 / A-MEM)
+    - Vision fallback
+    - Adaptive interruption learning
+    - eBPF network policy
+    - MCP Gateway OAuth management
+    - Multiple specialized agents (single Goose handles all tasks)
+
+─────────────────────────────────────────────────────────────────────────────
+
+V1.5 — MCP GATEWAY COMPLETION (Weeks 4-6 of V1)
+  Target: Production-ready MCP Gateway with full auth, schema validation,
+    and circuit breakers
+
+  Scope:
+    - OAuth token management (store, refresh, inject)
+    - JSON Schema validation for all request/response pairs
+    - Circuit breakers and dead letter queues
+    - Health check dashboard
+    - Audit Memory integration (every tool call logged)
+
+─────────────────────────────────────────────────────────────────────────────
+
+V2 — INTELLIGENCE EXPANSION (Months 9–18)
+  Gate: V1 go/no-go criteria met
+
+  Scope:
+    - Semantic memory (Mem0 + A-MEM + vector DB)
+    - Graph memory backend
+    - GNOME Shell extension + AI overlay panel
+    - Workflow DAG visualizer
+    - Adaptive interruption learning (contextual bandit)
+    - Semantic filesystem agent (AIOS-LSFS)
+    - Improved Desktop Agent (vision fallback integration)
+    - eBPF network policy enforcement (Cilium)
+    - SELinux policy refinement (enforcing mode per agent)
+    - Plugin API v1.0
+    - Enhanced onboarding (demonstration recording)
+
+  V2 Go/No-Go Criteria:
+    - AT-SPI success rate ≥ 85% on target applications
+    - Vision fallback frequency < 15% of Desktop Agent interactions
+    - Interruption dismissal rate < 20% in Balanced mode
+    - Memory retrieval latency < 100ms (Personal/Operational)
+    - SELinux enforcing mode active for all core agents
+
+─────────────────────────────────────────────────────────────────────────────
+
+V3 — ADVANCED COGNITION (Months 19–30)
+  Gate: V2 go/no-go criteria met
+
+  Scope:
+    - Demonstration learning agent (OpenAdapt)
+    - Predictive/speculative workflow execution
+    - Shadow Execution Sandboxes (eBPF syscall tracing)
+    - Peer Consensus Orchestration (replacing single CEO Agent)
+    - Cross-device orchestration
+    - Deterministic replay for speculative execution review
+    - Advanced observability (causality graphs, latency attribution)
+    - Plugin registry and community ecosystem
+
+
+================================================================================
+24. RECOMMENDED TEAM STRUCTURE
+================================================================================
+
+Minimum viable team: 5 experienced contributors with defined specializations.
+
+  Role                        Responsibilities
+  ──────────────────────────  ─────────────────────────────────────────────
+  Security & SELinux Engineer SELinux policy, Podman isolation, eBPF,
+                              Security Agent, capability enforcement
+
+  GNOME & Wayland Engineer    GNOME Shell extension, Portal APIs, AT-SPI2,
+                              DBus integration, Wayland compatibility
+
+  AI & Agent Systems Engineer LangGraph orchestration, AIOS/Cerebrum SDK,
+                              Memory systems, LLM routing, CEO Agent design,
+                              MCP Gateway Agent
+
+  Infrastructure Engineer     Podman runtime, Redis/NATS event bus,
+                              OpenTelemetry pipeline, Grafana, CI/CD,
+                              benchmark harness
+
+  UX & Product Designer       Onboarding flow, permission dialog design,
+                              interruption budget UX, DAG visualizer,
+                              user research
+
+Note: Generalists will bottleneck at the hardest specializations (SELinux,
+AT-SPI, multi-agent debugging). Specialization is required, not optional.
+
+
+================================================================================
+25. REALISTIC TIMELINE
+================================================================================
+
+  Phase         Duration          Cumulative
+  ──────────    ───────────────   ──────────
+  V1 (solo)     8-10 weeks        8-10 weeks
+  V1 (team)     6-8 months        6-8 months
+  V2            8-10 months       14-18 months
+  V3            8-12 months       22-30 months
+
+  Total estimated duration: 22-30 months with 5 dedicated contributors.
+
+  Solo V1 prototype: achievable in 8-10 weeks using existing Fedora packages
+  (Goose, RamaLama, Podman, SELinux) and AI-assisted development.
+
+  Buffer recommendation: Add 25% schedule contingency for upstream negotiation
+  delays, AT-SPI reliability remediation, and SELinux policy iteration.
+
+
+================================================================================
+26. ADVANTAGES
+================================================================================
+
+Technical:
+  - Secure, isolated AI execution (defense in depth, OS-enforced)
+  - Durable, recoverable workflow orchestration
+  - Semantic desktop interaction with graceful fallback
+  - Modular, independently replaceable component architecture
+  - Full observability from day one (not retrofitted)
+  - Deterministic execution replay for debugging
+  - Fedora-native, upstream-aligned approach
+  - OS-native tool execution (DBus, Unix sockets) for low-latency operations
+  - Centralized MCP Gateway solving protocol reliability and authentication
+  - Identity governance inherited from the OS, not bolted onto MCP
+
+User:
+  - Reduced repetitive micromanagement
+  - Smarter, context-aware automation
+  - Workflow continuity across sessions and reboots
+  - Non-intrusive adaptive assistance
+  - Full transparency into AI actions and approvals
+  - Easy audit and rollback of any AI action
+
+
+================================================================================
+27. LIMITATIONS & KNOWN CHALLENGES
+================================================================================
+
+  - SELinux policy authoring is specialized, slow, and maintenance-heavy
+  - AT-SPI support is inconsistent across GTK, Qt, Electron, and web apps
+  - Multi-agent distributed debugging remains a hard problem at scale
+  - Resource management overhead on low-end hardware (GPU for vision)
+  - Upstream collaboration is unpredictable in timeline and outcome
+  - Adaptive interruption learning requires significant interaction data
+  - Speculative execution safety is an unsolved research problem for V3
+  - MCP Gateway may become a throughput bottleneck without careful design
+  - The project remains a multi-year engineering effort requiring
+    specialized contributors
+
+
+================================================================================
+28. CONCLUSION
+================================================================================
+
+Fedora AI OS represents a governed cognitive operating layer built above Linux —
+not a replacement for it.
+
+The architecture combines:
+  - Resilient AI orchestration (CEO Agent + Standby Orchestrator)
+  - Typed, contract-verified inter-agent communication
+  - Layered memory systems with explicit access control
+  - Secure, sandboxed automation via a prioritized, OS-native API stack
+  - Durable, replayable workflow persistence
+  - Semantic desktop interaction with graceful fallback chains
+  - Full distributed observability from the first line of code
+  - Governed autonomy with progressive disclosure and trust escalation
+  - Upstream-first community alignment strategy
+  - First-class plugin architecture for community extensibility
+  - Centralized MCP Gateway solving the reliability and authentication
+    failures that plague current agent frameworks
+  - OS-inherited identity governance — the OS knows who you are, what you
+    authorized, and what every agent did
+
+into a Fedora-native environment emphasizing:
+
+        bounded, inspectable, auditable, and recoverable intelligence.
+
+The architecture has been validated by independent ecosystem developments:
+  - Red Hat's Tank OS: OpenClaw + rootless Podman + SELinux + immutable Fedora
+  - RamaLama sandbox-goose: native Goose support in local model serving
+  - Goose packaged as Fedora RPM: production-ready runtime executor
+
+The original design's gaps have been systematically addressed:
+
+  ✓  CEO Agent resilience (Standby Orchestrator)
+  ✓  Trust escalation rules (explicit triggers defined)
+  ✓  Memory access control (per-tier, per-agent)
+  ✓  Resource contention arbitration (Conflict Resolution Module)
+  ✓  Observability from V1 (not deferred)
+  ✓  V1 scope narrowed to achievable core
+  ✓  Go/no-go criteria between phases
+  ✓  Upstream-first strategy
+  ✓  Plugin architecture
+  ✓  Governance model
+  ✓  Onboarding flow
+  ✓  Specialized team structure
+  ✓  MCP reliability and authentication (Gateway Agent)
+  ✓  OS-native low-latency tool execution (Reflex Runtime, Deskbrid-style)
+  ✓  Hybrid LLM routing (local/cloud based on task complexity)
+
+Fedora AI OS is not a short-term project. It is a multi-year, community-driven
+effort to bring governed, transparent, and recoverable AI cognition to the Linux
+desktop — built the Fedora way: in the open, upstream first, security always.
+
+================================================================================
+                         END OF REPORT — Fedora AI OS v3.0
+================================================================================

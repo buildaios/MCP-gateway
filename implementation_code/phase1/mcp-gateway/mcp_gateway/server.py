@@ -1,12 +1,23 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
+import httpx
 from mcp_gateway.parser import parse_jsonrpc_request, JSONRPCParseError
 from mcp_gateway.config import load_config
 from mcp_gateway.router import forward_request, resolve_backend, RouterError
 from mcp_gateway.validation import SchemaRegistry, validate_request_params, SchemaValidationError
 import os
 
-app = FastAPI(title="MCP Gateway Server")
+http_client = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global http_client
+    http_client = httpx.AsyncClient()
+    yield
+    await http_client.aclose()
+
+app = FastAPI(title="MCP Gateway Server", lifespan=lifespan)
 
 # Load config on startup
 backends = []
@@ -53,4 +64,4 @@ async def mcp_endpoint(request: Request):
             content={"error": "validation_error", "field": e.field, "detail": e.message}
         )
         
-    return await forward_request(rpc_request, backend)
+    return await forward_request(rpc_request, backend, http_client)
