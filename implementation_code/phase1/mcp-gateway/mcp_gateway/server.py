@@ -6,6 +6,7 @@ from mcp_gateway.parser import parse_jsonrpc_request, JSONRPCParseError
 from mcp_gateway.config import load_config
 from mcp_gateway.router import forward_request, resolve_backend, RouterError
 from mcp_gateway.validation import SchemaRegistry, validate_request_params, SchemaValidationError
+from mcp_gateway.trust import trust_enforcer
 import os
 
 http_client = None
@@ -38,6 +39,12 @@ async def health():
 
 @app.post("/mcp")
 async def mcp_endpoint(request: Request):
+    agent_id = request.headers.get("X-Agent-Id", "unknown_agent")
+    try:
+        agent_trust_level = int(request.headers.get("X-Agent-Trust-Level", "0"))
+    except ValueError:
+        agent_trust_level = 0
+        
     body = await request.body()
     try:
         rpc_request = await parse_jsonrpc_request(body)
@@ -54,6 +61,13 @@ async def mcp_endpoint(request: Request):
         return JSONResponse(
             status_code=e.status_code,
             content={"error": e.error_code, "detail": e.message}
+        )
+        
+    # Trust Enforcement
+    if not trust_enforcer.evaluate_request(agent_id, agent_trust_level, method):
+        return JSONResponse(
+            status_code=403,
+            content={"error": "trust_enforcement_failed", "detail": f"Agent {agent_id} lacks trust level for {method}"}
         )
         
     try:
