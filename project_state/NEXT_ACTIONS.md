@@ -6,7 +6,7 @@ Mark tasks `[ ]` → `[x]` when completed.
 
 ---
 
-## 1. [ ] MCP Gateway — Project Scaffold
+## 1. [x] MCP Gateway — Project Scaffold
 
 **Reason:** First line of code for the next layer. Nothing depends on this — it's the new foundation.
 **Depends on:** Nothing
@@ -20,7 +20,7 @@ Mark tasks `[ ]` → `[x]` when completed.
 
 ---
 
-## 2. [ ] MCP Gateway — Core Proxy Routing
+## 2. [x] MCP Gateway — Core Proxy Routing
 
 **Reason:** The gateway must accept MCP JSON-RPC and forward to backends.
 **Depends on:** Task 1
@@ -34,7 +34,7 @@ Mark tasks `[ ]` → `[x]` when completed.
 
 ---
 
-## 3. [ ] Audit Memory Tier — SQLite Store
+## 3. [x] Audit Memory Tier — SQLite Store
 
 **Reason:** Every other component needs audit logging. Build this early so every subsequent task can log to it.
 **Depends on:** Nothing (use existing AuditLogger pattern from v2_engine.py)
@@ -61,7 +61,7 @@ Mark tasks `[ ]` → `[x]` when completed.
 
 ---
 
-## 5. [ ] MCP Gateway — Schema Validation
+## 5. [x] MCP Gateway — Schema Validation
 
 **Reason:** Prevent malformed requests from reaching backends. Parallel work with Tasks 3-4.
 **Depends on:** Task 2
@@ -88,7 +88,7 @@ Mark tasks `[ ]` → `[x]` when completed.
 
 ---
 
-## 7. [ ] MCP Gateway — Resilience Layer
+## 7. [x] MCP Gateway — Resilience Layer
 
 **Reason:** Production readiness requires retry, circuit breaker, and dead-letter queue.
 **Depends on:** Tasks 2, 3 (audit memory for dead-letter queue)
@@ -131,7 +131,7 @@ Mark tasks `[ ]` → `[x]` when completed.
 
 ---
 
-## 10. [ ] LangGraph Bridge — Project Setup
+## 10. [x] LangGraph Bridge — Project Setup
 
 **Reason:** Next major integration point after MCP Gateway.
 **Depends on:** Task 2 (MCP Gateway proxy)
@@ -144,7 +144,7 @@ Mark tasks `[ ]` → `[x]` when completed.
 
 ---
 
-## 11. [ ] LangGraph Bridge — State Adapter
+## 11. [x] LangGraph Bridge — State Adapter
 
 **Reason:** v3_engine.WorkflowState and LangGraph State must interop.
 **Depends on:** Task 10
