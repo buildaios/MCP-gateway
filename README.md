@@ -1,1 +1,11 @@
-# Fedora AI OS - MCP Gateway Project\n\nThis project implements the core MCP Gateway for Fedora AI OS.\n\n## Setup\n\n1. Clone the repository (if necessary).\n2. Navigate to this directory.\n3. Create a Python virtual environment and install dependencies (e.g., ).\n\n## Running the Gateway\n\n\n\nThis will start the gateway server on a configurable port.\n
+BuildAIOS MCP Gateway
+
+The secure entry point for all Model Context Protocol (MCP) communication within BuildAIOS.
+
+Features:
+• Authentication & Authorization
+• Trust & Policy Enforcement
+• Server Discovery
+• Request Validation
+• Routing & Load Balancing
+• Observability & Auditing
