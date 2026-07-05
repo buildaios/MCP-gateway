@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-gateway"
+version = "0.1.0"
+authors = [
+  {name = "Lakshay Bharti", email = "lakshay@example.com"},
+]
+description = "Core MCP Gateway Proxy for Fedora AI OS"
+dependencies = [
+    "mcp",
+    "httpx",
+    "pyyaml",
+    "jsonschema",
+]
+
+[project.scripts]
+gateway = "mcp_gateway.cli:serve"
